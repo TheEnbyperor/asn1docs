@@ -1,0 +1,19 @@
+{% macro javadoc(javadoc) %}
+    <div class="javadoc">
+    {% for segment in javadoc.segments %}
+        {% if segment.TYPE == "text" %}
+            {{ segment.render()|safe }}
+        {% endif %}
+    {% endfor %}
+    </div>
+{% endmacro %}
+
+{% macro javadoc_parameter(javadoc, parameter) %}
+    <div class="javadoc">
+    {% for segment in javadoc.segments %}
+        {% if segment.TYPE == "tag" and segment.tag == parameter %}
+            {{ segment.render()|safe }}
+        {% endif %}
+    {% endfor %}
+    </div>
+{% endmacro %}

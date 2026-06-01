@@ -1,0 +1,9 @@
+{% macro render_spans(spans) -%}
+    {%- for span in spans -%}
+        {%- if span.type -%}
+            <span class="syntax-{{ span.type }}">{{ span.text }}</span>
+        {%- else -%}
+            {{ span.text }}
+        {%- endif -%}
+    {%- endfor -%}
+{%- endmacro %}

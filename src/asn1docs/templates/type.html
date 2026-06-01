@@ -1,0 +1,171 @@
+{% import "javadoc.html" as javadoc %}
+{% import "value.html" as value %}
+{% import "constraint.html" as constraint %}
+
+{% macro sequence(def, module, context) %}
+    <span class="tag type-tag">SEQUENCE</span>
+    <p>This sequence contains the following fields:</p>
+    <dl class="fields">
+        {% for k, v in def.components.items() %}
+            <dt>
+                {{ k }}
+                {% if v.optional %}
+                    <span class="tag optional-tag">Optional</span>
+                {% endif %}
+                {% if v.default %}
+                    <span class="tag optional-tag">Default value defined</span>
+                {% endif %}
+            </dt>
+            <dd>
+                {% if v.javadoc %}
+                    {{ javadoc.javadoc(v.javadoc) }}
+                {% endif %}
+                {{ type(v.type_definition, module, context) }}
+                {% if v.default %}
+                    <p>
+                        This field, when unset, defaults to the following value:
+                        {{ value.value(v.default, module, context) }}
+                    </p>
+                {% endif %}
+            </dd>
+        {% endfor %}
+    </dl>
+{% endmacro %}
+
+{% macro enumeration(def, module, context) %}
+    <span class="tag type-tag">ENUMERATED</span>
+    <p>This sequence may have one of the following values:</p>
+    <dl class="fields">
+        {% for v in def.values %}
+            <dt>{{ v.name }}</dt>
+            <dd>
+                {% if v.value %}
+                    <p>Value: {{ value.value(v.value, module, context) }}</p>
+                {% endif %}
+                {% if v.javadoc %}
+                    {{ javadoc.javadoc(v.javadoc) }}
+                {% endif %}
+            </dd>
+        {% endfor %}
+    </dl>
+{% endmacro %}
+
+{% macro choice(def, module, context) %}
+    <span class="tag type-tag">CHOICE</span>
+    <p>The value of this choice may be one of the following:</p>
+    <dl class="fields">
+        {% for k, v in def.components.items() %}
+            <dt>
+                {{ k }}
+            </dt>
+            <dd>
+                {% if v.javadoc %}
+                    {{ javadoc.javadoc(v.javadoc) }}
+                {% endif %}
+                {{ type(v.type_definition, module, context) }}
+            </dd>
+        {% endfor %}
+    </dl>
+{% endmacro %}
+
+{% macro character_string(def) %}
+    {% if def.string_type == def.string_type.VisibleString %}
+        <span class="tag type-tag">VisibleString</span>
+    {% endif %}
+{% endmacro %}
+
+{% macro type(def, module, context) %}
+    {% if def.TYPE_NAME == "TYPE_REFERENCE" %}
+        {% if def.is_parameter %}
+            <span class="tag type-reference parameter">
+                <span class="label">Parameter</span>
+                {{ def.type_reference }}
+            </span>
+        {% else %}
+            {% if context.is_external_reference(def, module) %}
+                <a href="{{ context.module_relative_link(def, module) }}#symbol-{{ def.type_reference }}" class="tag type-reference external-reference">
+                    {{ def.type_reference }}
+                </a>
+            {% else %}
+                <a href="#symbol-{{ def.type_reference }}" class="tag type-reference">
+                    {{ def.type_reference }}
+                </a>
+            {% endif %}
+        {% endif %}
+        {% if def.parameters %}
+            <p>This type is concretely parameterised with the following:</p>
+            {% with ref_type = context.resolve_type_reference(def, module) %}
+                {% with params = ref_type.apply_parameters(def.parameters) %}
+                    <dl class="fields parameters">
+                        {% for k, v in params.items() %}
+                            <dt>
+                                {{ k }}
+                            </dt>
+                            <dd>
+                                {% if v.is_value %}
+                                    {{ value.value(v.value, module, context) }}
+                                {% else %}
+                                    {{ type(v.value, module, context) }}
+                                {% endif %}
+                            </dd>
+                        {% endfor %}
+                    </dl>
+                {% endwith %}
+            {% endwith %}
+        {% endif %}
+    {% elif def.TYPE_NAME == "NULL" %}
+        <span class="tag type-tag">NULL</span>
+    {% elif def.TYPE_NAME == "BOOLEAN" %}
+        <span class="tag type-tag">BOOLEAN</span>
+    {% elif def.TYPE_NAME == "INTEGER" %}
+        <span class="tag type-tag">INTEGER</span>
+    {% elif def.TYPE_NAME == "OCTET_STRING" %}
+        <span class="tag type-tag">OCTET STRING</span>
+    {% elif def.TYPE_NAME == "OBJECT_IDENTIFIER" %}
+        <span class="tag type-tag">OBJECT IDENTIFIER</span>
+    {% elif def.TYPE_NAME == "CHARACTER_STRING" %}
+        {{ character_string(def) }}
+    {% elif def.TYPE_NAME == "ENUMERATION" %}
+        {{ enumeration(def, module, context) }}
+    {% elif def.TYPE_NAME == "SEQUENCE" %}
+        {{ sequence(def, module, context) }}
+    {% elif def.TYPE_NAME == "CHOICE" %}
+        {{ choice(def, module, context) }}
+    {% elif def.TYPE_NAME == "SEQUENCE_OF" %}
+        <span class="tag type-tag">SEQUENCE OF</span>
+        {{ type(def.inner_type_definition, module, context) }}
+    {% elif def.TYPE_NAME == "CONSTRAINED_TYPE" %}
+        {{ type(def.inner_type_definition, module, context) }}
+        <p>This type is constrained in the following way:</p>
+        {{ constraint.constraint(def.constraints, module, context) }}
+    {% endif %}
+{% endmacro %}
+
+{% macro type_tag(def) %}
+    {% if def.TYPE_NAME == "TYPE_REFERENCE" %}
+        <span class="tag type-tag">REF</span>
+    {% elif def.TYPE_NAME == "NULL" %}
+        <span class="tag type-tag">NULL</span>
+    {% elif def.TYPE_NAME == "BOOLEAN" %}
+        <span class="tag type-tag">BOOLEAN</span>
+    {% elif def.TYPE_NAME == "INTEGER" %}
+        <span class="tag type-tag">INTEGER</span>
+    {% elif def.TYPE_NAME == "OCTET_STRING" %}
+        <span class="tag type-tag">OCTET STRING</span>
+    {% elif def.TYPE_NAME == "OBJECT_IDENTIFIER" %}
+        <span class="tag type-tag">OBJECT IDENTIFIER</span>
+    {% elif def.TYPE_NAME == "CHARACTER_STRING" %}
+        {{ character_string(def) }}
+    {% elif def.TYPE_NAME == "ENUMERATION" %}
+        <span class="tag type-tag">ENUMERATED</span>
+    {% elif def.TYPE_NAME == "SEQUENCE" %}
+        <span class="tag type-tag">SEQUENCE</span>
+    {% elif def.TYPE_NAME == "CHOICE" %}
+        <span class="tag type-tag">CHOICE</span>
+    {% elif def.TYPE_NAME == "SEQUENCE_OF" %}
+        <span class="tag type-tag">SEQUENCE OF</span>
+        {{ type_tag(def.inner_type_definition) }}
+    {% elif def.TYPE_NAME == "CONSTRAINED_TYPE" %}
+        {{ type_tag(def.inner_type_definition) }}
+    {% endif %}
+{% endmacro %}

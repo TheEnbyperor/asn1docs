@@ -1,0 +1,62 @@
+{% import "syntax_highlight.html" as syntax %}
+{% import "javadoc.html" as javadoc %}
+{% import "type.html" as type %}
+{% import "value.html" as value %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{ oid.numeric_oid }}</title>
+    <style>
+        {% include "style.css" %}
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="hero">
+        {% if oid %}
+            <h1>OID Arc: {{ oid.numeric_oid }}</h1>
+            {% if oid %}
+                {{ value.oid(oid, None, context) }}
+            {% endif %}
+        {% else %}
+            <h1>OID Root</h1>
+        {% endif %}
+    </header>
+
+    {% macro oid_list(a, url, components) %}
+        <ul class="oid-list">
+            {% for arc in a.children.values()|sort(attribute='number') %}
+                <li>
+                    <a href="{{ url }}{% if arc.name %}{{ arc.name }}{% else %}{{ arc.number }}{% endif %}/">
+                        {% if arc.name is not none %}
+                            <span class="arc-name">{{ arc.name }}</span>
+                        {% endif %}
+                        <span class="arc-id">{{ arc.number }}</span>
+                        {% with module = context.get_module_by_oid(components + [arc.number]) %}
+                            {% if module %}
+                                {{ module.module_reference }}
+                            {% endif %}
+                        {% endwith %}
+                    </a>
+                    {% if arc.children %}
+                        <span class="oid-separator">›</span>
+                        {% if arc.name %}
+                            {{ oid_list(arc, url + arc.name + "/", components + [arc.number]) }}
+                        {% else %}
+                            {{ oid_list(arc, url + arc.number|string + "/", components + [arc.number]) }}
+                        {% endif %}
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endmacro %}
+
+    <main class="context">
+        <h2>Children</h2>
+        {{ oid_list(node, "", oid.components|list) }}
+    </main>
+</div>
+</body>
+</html>

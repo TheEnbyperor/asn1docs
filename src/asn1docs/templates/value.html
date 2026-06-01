@@ -1,0 +1,67 @@
+{% macro oid(val, module, context) %}
+    <nav class="oid-breadcrumbs">
+        <a href="{{ context.oid_relative_link(val, 0, module) }}">
+            <span class="arc-name">ROOT</span>
+            <span class="oid-separator">›</span>
+        </a>
+        {% for arc in val.named_components() %}
+            <a href="{{ context.oid_relative_link(val, loop.index, module) }}">
+                {% if arc.name is not none %}
+                    <span class="arc-name">{{ arc.name }}</span>
+                {% endif %}
+                <span class="arc-id">{{ arc.number }}</span>
+            </a>
+            {% if not loop.last %}
+                <span class="oid-separator">›</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+{% endmacro %}
+
+{% macro value(val, module, context) %}
+    {% if val.VALUE_TYPE == "VALUE_REFERENCE" %}
+        {% if val.is_parameter %}
+            <span class="tag value-reference parameter">
+                <span class="label">Parameter</span>
+                {{ val.value_reference }}
+            </span>
+        {% else %}
+            {% if context.is_external_reference(val, module) %}
+            {% else %}
+                <a href="#symbol-{{ val.value_reference }}" class="tag value-reference">
+                    {{ val.value_reference }}
+                </a>
+            {% endif %}
+        {% endif %}
+    {% elif val.VALUE_TYPE == "INTEGER" %}
+        <code><span class="syntax-number">{{ val.value }}</span></code>
+    {% elif val.VALUE_TYPE == "CHARACTER_STRING" %}
+        <code><span class="syntax-string">{{ val.value }}</span></code>
+    {% elif val.VALUE_TYPE == "OBJECT_IDENTIFIER" %}
+        {{ oid(context.store_oid(val, module), module, context) }}
+    {% elif val.VALUE_TYPE == "ENUMERATION" %}
+        <code><span class="syntax-identifier">{{ val.value }}</span></code>
+    {% elif val.VALUE_TYPE == "CHOICE" %}
+        <span class="tag value-reference variant">
+            <span class="label">Choice variant</span>
+            {{ val.variant }}
+        </span>
+        {{ value(val.value, module, context) }}
+    {% elif val.VALUE_TYPE == "SEQUENCE" %}
+        {% if val.fields %}
+            <span class="tag type-tag">SEQUENCE</span>
+            <dl class="fields">
+                {% for k, v in val.fields.items() %}
+                    <dt>
+                        {{ k }}
+                    </dt>
+                    <dd>
+                        {{ value(v, module, context) }}
+                    </dd>
+                {% endfor %}
+            </dl>
+        {% else %}
+            <span class="tag type-tag">EMPTY SEQUENCE</span>
+        {% endif %}
+    {% endif %}
+{% endmacro %}

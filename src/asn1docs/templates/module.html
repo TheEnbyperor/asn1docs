@@ -1,0 +1,181 @@
+{% import "syntax_highlight.html" as syntax %}
+{% import "javadoc.html" as javadoc %}
+{% import "type.html" as type %}
+{% import "value.html" as value %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>{{ module.module_reference }}</title>
+    <style>
+        {% include "style.css" %}
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="hero">
+        <h1>{{ module.module_reference }}</h1>
+        {% if module.oid %}
+            {{ value.oid(module.oid, module, context) }}
+        {% endif %}
+        {% if module.javadoc %}
+            {{ javadoc.javadoc(module.javadoc) }}
+        {% endif %}
+    </header>
+
+    <main class="layout">
+        <aside class="card toc">
+            <h2>Assignments</h2>
+            <nav id="toc">
+                {% for symbol, assignment in module.assignments.items() %}
+                    <a href="#symbol-{{ symbol }}">
+                        {{ symbol }}<br/>
+                        {% if assignment.ASSIGNMENT_TYPE == "TYPE" %}
+                            {{ type.type_tag(assignment.type_definition) }}<br/>
+                        {% elif assignment.ASSIGNMENT_TYPE == "VALUE" %}
+                            {{ type.type_tag(assignment.value_type) }}<br/>
+                        {% endif %}
+                        {% if assignment.parameters %}
+                            <span class="tag">Parameterised</span>
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <div class="content collapse-source" id="content">
+            <section class="assignments" style="grid-row: 1 / {{ module.assignments|length + 7 }}">
+                <article class="module-info" style="grid-row: 1">
+                    <h2>Module Info</h2>
+                    <dl>
+                        <dt>Reference</dt>
+                        <dd><code>{{ module.module_reference }}</code></dd>
+                        {% if module.oid %}
+                            <dt>Numeric OID</dt>
+                            <dd><code>{{ module.oid.numeric_oid }}</code></dd>
+                        {% endif %}
+                    </dl>
+                </article>
+                <article class="exports" style="grid-row: 2">
+                    <h2>Exports</h2>
+                    {% if module.implicit_all_exports %}
+                        <p>This module implicitly exports all symbols.</p>
+                    {% elif module.all_exports %}
+                        <p>This module explicitly exports all symbols.</p>
+                    {% elif module.exports %}
+                        <p>This module explicitly exports the following symbols:</p>
+                        {% for symbol in module.exports %}
+                            <a href="#symbol-{{ symbol }}" class="tag type-reference">{{ symbol }}</a>
+                        {% endfor %}
+                    {% else %}
+                        <p>This module does not export any symbols.</p>
+                    {% endif %}
+                </article>
+                <div style="grid-row: 3"></div>
+                <article class="exports" style="grid-row: 4">
+                    <h2>Imports</h2>
+                    {% if module.imports %}
+                        {% for import in module.imports %}
+                            <div class="card">
+                                <h3>From {{ import.module_reference }}</h3>
+                                {% if import.oid %}
+                                    {{ value.oid(import.oid, module, context) }}
+                                {% endif %}
+                                <p>
+                                    {% for symbol in import.symbols %}
+                                        {% if import.oid %}
+                                            <a href="{{ context.oid_relative_link(import.oid, -1, module) }}#symbol-{{ symbol }}"
+                                               class="tag type-reference external-reference">{{ symbol }}</a>
+                                        {% endif %}
+                                    {% endfor %}
+                                </p>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p>This module does not import any symbols.</p>
+                    {% endif %}
+                </article>
+                <div style="grid-row: 5">
+                    <h2>Assignments</h2>
+                </div>
+                {% for symbol, assignment in module.assignments.items() %}
+                    <article id="symbol-{{ symbol }}" class="assignment card" style="grid-row: {{ loop.index + 5 }}">
+                        <div class="assignment-header">
+                            <h3>{{ symbol }}</h3>
+                            {% if assignment.parameters %}
+                                <span class="tag">Parameterised</span>
+                            {% endif %}
+                        </div>
+                        {% if assignment.javadoc %}
+                            {{ javadoc.javadoc(assignment.javadoc) }}
+                        {% endif %}
+                        {% if assignment.parameters %}
+                            <p>This assignment is parameterised, accepting the following parameters:</p>
+                            <dl class="fields parameters">
+                                {% for k, v in assignment.parameters.items() %}
+                                    <dt>
+                                        {{ k }}
+                                    </dt>
+                                    <dd>
+                                        {% if assignment.javadoc %}
+                                            {{ javadoc.javadoc_parameter(assignment.javadoc, k) }}
+                                        {% endif %}
+                                        {% if v.governor %}
+                                            {{ type.type(v.governor, module, context) }}
+                                        {% endif %}
+                                    </dd>
+                                {% endfor %}
+                            </dl>
+                        {% endif %}
+                        {% if assignment.ASSIGNMENT_TYPE == "TYPE" %}
+                            {{ type.type(assignment.type_definition, module, context) }}
+                        {% elif assignment.ASSIGNMENT_TYPE == "VALUE" %}
+                            {{ type.type(assignment.value_type, module, context) }}
+                            {{ value.value(assignment.value, module, context) }}
+                        {% endif %}
+                    </article>
+                {% endfor %}
+                <div style="grid-row: {{ module.assignments|length + 6 }}"></div>
+            </section>
+
+            <button class="uncollapse-button" id="uncollapseSourceButton" type="button"></button>
+            <aside class="asn-column" style="grid-row: 1 / {{ module.assignments|length + 7 }}">
+                <button class="collapse-button" id="collapseSourceButton" type="button"></button>
+                <div class="asn-box" style="grid-row: 1">
+                    <pre>{{ syntax.render_spans(module.source.head_spans) }}</pre>
+                </div>
+                <div class="asn-box" style="grid-row: 2">
+                    <pre>{{ syntax.render_spans(module.source.exports_spans) }}</pre>
+                </div>
+                <div class="asn-box" style="grid-row: 3">
+                    <pre>{{ syntax.render_spans(module.source.before_imports_spans) }}</pre>
+                </div>
+                <div class="asn-box" style="grid-row: 4">
+                    <pre>{{ syntax.render_spans(module.source.imports_spans) }}</pre>
+                </div>
+                <div class="asn-box" style="grid-row: 5">
+                    <pre>{{ syntax.render_spans(module.source.before_assignments_spans) }}</pre>
+                </div>
+                {% for assignment in module.source.assignments_spans %}
+                    <div class="asn-box" style="grid-row: {{ loop.index + 5 }}">
+                        <pre>{{ syntax.render_spans(assignment) }}</pre>
+                    </div>
+                {% endfor %}
+                <div class="asn-box" style="grid-row: {{ module.assignments|length + 6 }}">
+                    <pre>{{ syntax.render_spans(module.source.footer_spans) }}</pre>
+                </div>
+            </aside>
+        </div>
+    </main>
+</div>
+<script>
+    document.getElementById("collapseSourceButton").addEventListener("click", function () {
+        document.getElementById("content").classList.add("collapse-source");
+    });
+    document.getElementById("uncollapseSourceButton").addEventListener("click", function () {
+        document.getElementById("content").classList.remove("collapse-source");
+    });
+</script>
+</body>
+</html>

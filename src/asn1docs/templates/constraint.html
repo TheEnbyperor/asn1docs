@@ -1,0 +1,87 @@
+{% import "value.html" as value %}
+
+{% macro constraint(con, module, context) %}
+    {% if con.CONSTRAINT_TYPE == "SIZE_CONSTRAINT" %}
+        <div class="constraint card">
+            <h4>Size constraint</h4>
+            {% if con.length_range.CONSTRAINT_TYPE == "VALUE_RANGE" %}
+                {% if con.length_range.min_inclusive %}
+                    <p>
+                        The length of the value must be greater than or equal to:
+
+                        {{ value.value(con.length_range.min, module, context) }}
+                    </p>
+                {% else %}
+                    <p>
+                        The length of the value must be strictly greater than:
+                        {{ value.value(con.length_range.min, module, context) }}
+                    </p>
+                {% endif %}
+                {% if con.length_range.max_inclusive %}
+                    <p>
+                        The length of the value must be less than or equal to:
+                        {{ value.value(con.length_range.max, module, context) }}
+                    </p>
+                {% else %}
+                    <p>
+                        The length of the value must be strictly less than:
+                        {{ value.value(con.length_range.max, module, context) }}
+                    </p>
+                {% endif %}
+            {% elif con.length_range.CONSTRAINT_TYPE == "SINGLE_VALUE" %}
+                <p>
+                    The length of the value must exactly:
+                    {{ value.value(con.length_range.value, module, context) }}
+                </p>
+            {% endif %}
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "VALUE_RANGE" %}
+        <div class="constraint card">
+            <h4>Range constraint</h4>
+            {% if con.min_inclusive %}
+                <p>
+                    The value must be greater than or equal to:
+                    {{ value.value(con.min, module, context) }}
+                </p>
+            {% else %}
+                <p>
+                    The value must be strictly greater than:
+                    {{ value.value(con.min, module, context) }}
+                </p>
+            {% endif %}
+            {% if con.max_inclusive %}
+                <p>
+                    The value must be less than or equal to:
+                    {{ value.value(con.max, module, context) }}
+                </p>
+            {% else %}
+                <p>
+                    The value must be strictly less than:
+                    {{ value.value(con.max, module, context) }}
+                </p>
+            {% endif %}
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "PERMITTED_ALPHABET" %}
+        <div class="constraint card">
+            <h4>Permitted alphabet constraint</h4>
+            <p>The characters in the string value must satisfy the following constraint:</p>
+            {{ constraint(con.alphabet, module, context) }}
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "INTERSECTION" %}
+        <div class="constraint card">
+        <h4>Intersection</h4>
+        <p>Both of the following must be true:</p>
+        {{ constraint(con.left, module, context) }}
+        <p><b>AND</b></p>
+        {{ constraint(con.right, module, context) }}
+        <div>
+    {% elif con.CONSTRAINT_TYPE == "UNION" %}
+        <div class="constraint card">
+        <h4>Union</h4>
+        <p>Either of the following can be true:</p>
+        {{ constraint(con.left, module, context) }}
+        <p><b>OR</b></p>
+        {{ constraint(con.right, module, context) }}
+        <div>
+    {% endif %}
+{% endmacro %}
