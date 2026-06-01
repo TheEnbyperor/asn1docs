@@ -2,5 +2,7 @@
 requires = [
     "pyparsing",
     "jinja2",
+    "setuptools",
+    "markdown-it-py",
 ]
 build-backend = "setuptools.build_meta"
