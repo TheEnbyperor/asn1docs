@@ -5,7 +5,7 @@ import pyparsing
 from . import value, util, javadoc, constraint, module
 
 Type = typing.Union[
-    "Reference", "Null", "Boolean", "Integer", "OctetString", "CharacterString",
+    "Reference", "Null", "Boolean", "Integer", "OctetString", "BitString", "CharacterString",
     "ObjectIdentifier", "Sequence", "SequenceOf", "Choice", "Enumeration", "ConstrainedType"
 ]
 
@@ -38,6 +38,11 @@ class Integer:
 @dataclasses.dataclass
 class OctetString:
     TYPE_NAME = "OCTET_STRING"
+
+
+@dataclasses.dataclass
+class BitString:
+    TYPE_NAME = "BIT_STRING"
 
 
 @dataclasses.dataclass
@@ -247,6 +252,9 @@ def build_type(
             return Integer()
         elif type_def.built_in_type.octet_string_type:
             return OctetString()
+        elif type_def.built_in_type.bit_string_type:
+            # TODO: named bits
+            return BitString()
         elif type_def.built_in_type.object_identifier_type:
             return ObjectIdentifier()
         elif type_def.built_in_type.character_string_type:

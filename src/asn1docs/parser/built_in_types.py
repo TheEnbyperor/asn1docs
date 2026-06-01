@@ -65,11 +65,11 @@ values_types.UnconstrainedType <<= pyparsing.Group(
 
 # 17.2
 BuiltinType <<= pyparsing.Group(
-    # BitStringType
     NullType("null_type")
     | BooleanType("boolean_type")
     | IntegerType("integer_type")
     | OctetStringType("octet_string_type")
+    | BitStringType("bit_string_type")
     | CharacterStringType("character_string_type")
     | object_identifier.ObjectIdentifierType("object_identifier_type")
     | object_identifier.IRIType("iri_type")
@@ -268,18 +268,19 @@ IdentifierList = pyparsing.Forward()
 
 # 22.1
 BitStringType <<= pyparsing.Group(
-    pyparsing.Keyword("BIT STRING")
-    | (pyparsing.Keyword("BIT STRING") + lexical_items.LBRACE + NamedBitList + lexical_items.RBRACE)
+    (pyparsing.Keyword("BIT STRING") + lexical_items.LBRACE + NamedBitList("named_bit_list") + lexical_items.RBRACE)
+    | pyparsing.Keyword("BIT STRING")
 )
 
-NamedBitList <<= pyparsing.Group(
-    NamedBit
-    | NamedBitList + lexical_items.COMMA + NamedBit
-)
+NamedBitList <<= pyparsing.Group(pyparsing.delimitedList(
+    NamedBit,
+    delim=lexical_items.COMMA,
+    min=1
+))
 
 NamedBit <<= pyparsing.Group(
-    (lexical_items.identifier + lexical_items.LPAR + lexical_items.number + lexical_items.RPAR)
-    | (lexical_items.identifier + lexical_items.LPAR + values_types.DefinedValue + lexical_items.RPAR)
+    (lexical_items.identifier("name") + lexical_items.LPAR + lexical_items.number("number") + lexical_items.RPAR)
+    | (lexical_items.identifier("name") + lexical_items.LPAR + values_types.DefinedValue("defined_value") + lexical_items.RPAR)
 )
 
 # 22.9
