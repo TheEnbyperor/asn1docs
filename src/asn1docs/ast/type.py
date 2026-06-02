@@ -278,6 +278,8 @@ def build_type(
             return Enumeration.build_type(type_def.built_in_type.enumerated_type, parameters)
         elif type_def.built_in_type.sequence_of_type:
             return SequenceOf.build_sequence_of_type(type_def.built_in_type.sequence_of_type, parameters)
+        elif type_def.built_in_type.object_class_field_type:
+            pass
         else:
             raise NotImplementedError(f"Unhandled built-in type {type_def.built_in_type}")
     elif type_def.referenced_type:
@@ -286,7 +288,7 @@ def build_type(
                 ref = type_def.referenced_type.defined_type.type_reference[0]
                 return Reference(
                     type_reference=ref,
-                    is_parameter=bool(parameters and ref in parameters and not parameters[ref].is_value)
+                    is_parameter=bool(parameters and ref in parameters and parameters[ref].parameter_type == module.ParameterType.Type),
                 )
             elif type_def.referenced_type.defined_type.external_type_reference:
                 return Reference(
@@ -298,7 +300,7 @@ def build_type(
                     ref = type_def.referenced_type.defined_type.parameterized_type.simple_defined_type.type_reference[0]
                     return Reference(
                         type_reference=ref,
-                        is_parameter=bool(parameters and ref in parameters and not parameters[ref].is_value),
+                        is_parameter=bool(parameters and ref in parameters and parameters[ref].parameter_type == module.ParameterType.Type),
                         parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
                                     type_def.referenced_type.defined_type.parameterized_type.parameter_list.parameters]
                     )

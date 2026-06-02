@@ -288,6 +288,11 @@ code {
     color: #dbeafe;
 }
 
+pre code {
+    display: inline-block;
+    padding: 8px;
+}
+
 dl {
     display: grid;
     gap: 12px 18px;

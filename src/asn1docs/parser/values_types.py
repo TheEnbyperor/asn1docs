@@ -36,6 +36,10 @@ ValueSet = pyparsing.Forward()
 ElementSetSpecs = pyparsing.Forward()
 NamedType = pyparsing.Forward()
 NamedValue = pyparsing.Forward()
+BuiltinType = pyparsing.Forward()
+BuiltinValue = pyparsing.Forward()
+ReferencedType = pyparsing.Forward()
+ReferencedValue = pyparsing.Forward()
 
 TypeAssignment = pyparsing.Group(
     lexical_items.typereference("type_reference") + lexical_items.assignment + Type("type")

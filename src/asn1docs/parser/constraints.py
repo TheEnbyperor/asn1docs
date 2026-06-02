@@ -43,13 +43,13 @@ ConstrainedType = pyparsing.Group(
 # 49.5
 TypeWithConstraint <<= pyparsing.Group(
     pyparsing.Group(pyparsing.Keyword("SET") + SizeConstraint("size_constraint") + pyparsing.Keyword("OF") + values_types.Type("type"))("size_set_of_type")
+    | pyparsing.Group(pyparsing.Keyword("SET") + SizeConstraint + pyparsing.Keyword("OF") + values_types.NamedType("named_type"))("size_set_of_type")
     | pyparsing.Group(pyparsing.Keyword("SET") + Constraint("constraint") + pyparsing.Keyword("OF") + values_types.Type("type"))("set_of_type")
+    | pyparsing.Group(pyparsing.Keyword("SET") + Constraint("constraint") + pyparsing.Keyword("OF") + values_types.NamedType("named_type"))("set_of_type")
     | pyparsing.Group(pyparsing.Keyword("SEQUENCE") + SizeConstraint("size_constraint") + pyparsing.Keyword("OF") + values_types.Type("type"))("size_sequence_of_type")
+    | pyparsing.Group(pyparsing.Keyword("SEQUENCE") + SizeConstraint("size_constraint") + pyparsing.Keyword("OF") + values_types.NamedType("named_type"))("size_sequence_of_type")
     | pyparsing.Group(pyparsing.Keyword("SEQUENCE") + Constraint("constraint") + pyparsing.Keyword("OF") + values_types.Type("type"))("sequence_of_type")
-    # ^ (pyparsing.Keyword("SET") + Constraint + pyparsing.Keyword("OF") + values_types.NamedType)
-    # ^ (pyparsing.Keyword("SET") + SizeConstraint + pyparsing.Keyword("OF") + values_types.NamedType)
-    # ^ (pyparsing.Keyword("SEQUENCE") + Constraint + pyparsing.Keyword("OF") + values_types.NamedType)
-    # ^ (pyparsing.Keyword("SEQUENCE") + SizeConstraint + pyparsing.Keyword("OF") + values_types.NamedType)
+    | pyparsing.Group((pyparsing.Keyword("SEQUENCE") + Constraint("constraint") + pyparsing.Keyword("OF") + values_types.NamedType("named_type")))("sequence_of_type")
 )
 
 # 49.6
@@ -105,7 +105,7 @@ IntersectionElements <<= pyparsing.Group(
 )
 
 Exclusions <<= pyparsing.Group(
-    pyparsing.Keyword("EXCEPT") + Elements
+    pyparsing.Keyword("EXCEPT") + Elements("elements")
 )
 
 UnionMark <<= "|" | pyparsing.Keyword("UNION")
@@ -114,7 +114,7 @@ IntersectionMark <<= "^" | pyparsing.Keyword("INTERSECTION")
 
 # 50.6
 Elements <<= pyparsing.Group(
-    (lexical_items.LPAR + ElementSetSpec + lexical_items.RPAR)
+    (lexical_items.LPAR + ElementSetSpec("element_set_spec") + lexical_items.RPAR)
     | SubtypeElements("subtype_elements")
     # ^ ObjectSetElements
 )
@@ -127,11 +127,11 @@ SubtypeElements <<= pyparsing.Group(
     | ValueRange("value_range")
     | SingleValue("single_value")
     | PermittedAlphabet("permitted_alphabet")
+    | InnerTypeConstraints("inner_type_constraints")
+    | PatternConstraint("pattern")
+    | PropertySettings("property_settings")
     # ^ ContainedSubtype
     # ^ TypeConstraint
-    # ^ InnerTypeConstraints
-    # ^ PatternConstraint
-    # ^ PropertySettings
 )
 
 # 51.2.1
@@ -186,25 +186,22 @@ PermittedAlphabet <<= pyparsing.Group(
 
 # 51.8.1
 InnerTypeConstraints <<= pyparsing.Group(
-    (pyparsing.Keyword("WITH COMPONENT") + SingleTypeConstraint)
-    | (pyparsing.Keyword("WITH COMPONENTS") + MultipleTypeConstraints)
+    (pyparsing.Keyword("WITH COMPONENT") + Constraint("single_type_constraint"))
+    | (pyparsing.Keyword("WITH COMPONENTS") + MultipleTypeConstraints("multiple_type_constraints"))
 )
-
-# 51.8.4
-SingleTypeConstraint <<= Constraint
 
 # 51.8.5
 MultipleTypeConstraints <<= pyparsing.Group(
-    FullSpecification
-    | PartialSpecification
+    PartialSpecification("partial_specification")
+    | FullSpecification("full_specification")
 )
 
 FullSpecification <<= pyparsing.Group(
-    lexical_items.LBRACE + TypeConstraints + lexical_items.RBRACE
+    lexical_items.LBRACE + TypeConstraints("type_constraints") + lexical_items.RBRACE
 )
 
 PartialSpecification <<= pyparsing.Group(
-    lexical_items.LBRACE + lexical_items.ellipsis + lexical_items.COMMA + TypeConstraints + lexical_items.RBRACE
+    lexical_items.LBRACE + lexical_items.ellipsis + lexical_items.COMMA + TypeConstraints("type_constraints") + lexical_items.RBRACE
 )
 
 TypeConstraints <<= pyparsing.Group(pyparsing.DelimitedList(
@@ -214,12 +211,12 @@ TypeConstraints <<= pyparsing.Group(pyparsing.DelimitedList(
 ))
 
 NamedConstraint <<= pyparsing.Group(
-    lexical_items.identifier + ComponentConstraint
+    lexical_items.identifier("name") + ComponentConstraint("component_constraint")
 )
 
 # 51.8.8
 ComponentConstraint <<= pyparsing.Group(
-    pyparsing.Optional(Constraint) + pyparsing.Optional(PresenceConstraint)
+    pyparsing.Optional(Constraint)("constraint") + pyparsing.Optional(PresenceConstraint)("presence_constraint")
 )
 
 # 51.8.9

@@ -1,3 +1,4 @@
+import enum
 import typing
 import dataclasses
 import pyparsing
@@ -5,8 +6,8 @@ from . import value, util, module
 
 
 Constraint = typing.Union[
-    "ValueRange", "SingleValue", "SizeConstraint", "PermittedAlphabetConstraint", "ConstraintUnion",
-    "ConstraintIntersection"
+    "ValueRange", "SingleValue", "SizeConstraint", "PermittedAlphabetConstraint", "SingleInnerType", "MultipleInnerType",
+    "ConstraintUnion", "ConstraintIntersection", "ConstraintExclusion", "ConstraintInverse"
 ]
 
 @dataclasses.dataclass
@@ -114,6 +115,72 @@ class PermittedAlphabetConstraint:
 
 
 @dataclasses.dataclass
+class SingleInnerType:
+    CONSTRAINT_TYPE = "SINGLE_INNER_TYPE"
+
+    constraint: Constraint
+
+class Presence(enum.Enum):
+    Present = enum.auto()
+    Absent = enum.auto()
+    Optional = enum.auto()
+
+@dataclasses.dataclass
+class ComponentConstraint:
+    value_constraint: typing.Optional[Constraint]
+    presence_constraint: typing.Optional[Presence]
+
+@dataclasses.dataclass
+class MultipleInnerType:
+    CONSTRAINT_TYPE = "MULTIPLE_INNER_TYPE"
+
+    partial: bool
+    components: typing.Dict[str, ComponentConstraint]
+
+    @classmethod
+    def build(
+            cls, constraint_def: pyparsing.ParseResults,
+            parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
+    ) -> "MultipleInnerType":
+        if constraint_def.partial_specification:
+            partial = True
+            type_constraints = constraint_def.partial_specification.type_constraints
+        elif constraint_def.full_specification:
+            partial = False
+            type_constraints = constraint_def.full_specification.type_constraints
+        else:
+            util.assert_never(constraint_def)
+
+        components = {}
+
+        for constraint in type_constraints:
+            if constraint.name[0] in components:
+                raise SyntaxError(f"Duplicate component constraint {constraint.name[0]}")
+
+            if constraint.component_constraint.presence_constraint:
+                if constraint.component_constraint.presence_constraint[0] == "PRESENT":
+                    presence_constraint = Presence.Present
+                elif constraint.component_constraint.presence_constraint[0] == "ABSENT":
+                    presence_constraint = Presence.Absent
+                elif constraint.component_constraint.presence_constraint[0] == "OPTIONAL":
+                    presence_constraint = Presence.Optional
+                else:
+                    util.assert_never(constraint.component_constraint.presence_constraint)
+            else:
+                presence_constraint = None
+
+            components[constraint.name[0]] = ComponentConstraint(
+                value_constraint=build_constraint(constraint.component_constraint.constraint[0].constraint_spec, parameters) if constraint.component_constraint.constraint else None,
+                presence_constraint=presence_constraint
+            )
+
+        return cls(
+            partial=partial,
+            components=components
+        )
+
+
+@dataclasses.dataclass
 class ConstraintUnion:
     CONSTRAINT_TYPE = "UNION"
     left: Constraint
@@ -127,36 +194,68 @@ class ConstraintIntersection:
     right: Constraint
 
 
+@dataclasses.dataclass
+class ConstraintExclusion:
+    CONSTRAINT_TYPE = "EXCLUSION"
+    base_values: Constraint
+    exclusion: Constraint
+
+
+@dataclasses.dataclass
+class ConstraintInverse:
+    CONSTRAINT_TYPE = "INVERSE"
+    constraint: Constraint
+
+
 def build_constraint_element(
         element: pyparsing.ParseResults,
-        parameters: typing.Optional[typing.Dict[str, AssignmentParameter]] = None
+        parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Constraint:
     elm = element.elements
     if elm.subtype_elements:
         if elm.subtype_elements.size_constraint:
-            return SizeConstraint.build(elm.subtype_elements.size_constraint)
+            base_constraint = SizeConstraint.build(elm.subtype_elements.size_constraint)
         elif elm.subtype_elements.single_value:
-            return SingleValue(
+            base_constraint = SingleValue(
                 value=value.build_value(elm.subtype_elements.single_value, parameters)
             )
         elif elm.subtype_elements.value_range:
-            return ValueRange.build(elm.subtype_elements.value_range)
+            base_constraint = ValueRange.build(elm.subtype_elements.value_range)
         elif elm.subtype_elements.permitted_alphabet:
-            return PermittedAlphabetConstraint(
+            base_constraint = PermittedAlphabetConstraint(
                 alphabet=build_constraint(
                     elm.subtype_elements.permitted_alphabet.constraint[0].constraint_spec,
                     parameters
                 )
             )
+        elif elm.subtype_elements.inner_type_constraints:
+            if elm.subtype_elements.inner_type_constraints.single_type_constraint:
+                base_constraint = SingleInnerType(
+                    constraint=build_constraint(elm.subtype_elements.inner_type_constraints.single_type_constraint, parameters)
+                )
+            elif elm.subtype_elements.inner_type_constraints.multiple_type_constraints:
+                base_constraint = MultipleInnerType.build(elm.subtype_elements.inner_type_constraints.multiple_type_constraints)
+            else:
+                util.assert_never(elm.subtype_elements.inner_type_constraints)
         else:
-            raise NotImplementedError(f"Unhandled constraint element {elm}")
+            raise NotImplementedError(f"Unhandled constraint element {elm.dump()}")
+    elif elm.element_set_spec:
+        base_constraint = build_constraint_union(elm.element_set_spec[0].unions, parameters)
     else:
-        raise NotImplementedError(f"Unhandled constraint element {elm}")
+        util.assert_never(elm)
+
+    if element.exclusions:
+        return ConstraintExclusion(
+            base_values=base_constraint,
+            exclusion=build_constraint_element(element.exclusions, parameters)
+        )
+    else:
+        return base_constraint
 
 
 def build_constraint_intersection(
         intersection: pyparsing.ParseResults,
-        parameters: typing.Optional[typing.Dict[str, AssignmentParameter]] = None
+        parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Constraint:
     if intersection.intersection_elements_intersection_with:
         elm1 = build_constraint_element(intersection.intersection_elements_intersection_with, parameters)
@@ -171,7 +270,7 @@ def build_constraint_intersection(
 
 
 def build_constraint_union(
-        union: pyparsing.ParseResults, parameters: typing.Optional[typing.Dict[str, AssignmentParameter]] = None
+        union: pyparsing.ParseResults, parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Constraint:
     if union.intersections_union_with:
         elm1 = build_constraint_intersection(union.intersections_union_with, parameters)
@@ -185,10 +284,23 @@ def build_constraint_union(
         return elm
 
 
+def build_constraint_exclusions(
+        constraint: pyparsing.ParseResults, parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
+) -> Constraint:
+    if constraint.exclusions:
+        return ConstraintInverse(
+            constraint=build_constraint_element(constraint.exclusions, parameters)
+        )
+    elif constraint.unions:
+        return build_constraint_union(constraint.unions, parameters)
+    else:
+        util.assert_never(constraint)
+
+
 def build_constraint(
-        constraint: pyparsing.ParseResults, parameters: typing.Optional[typing.Dict[str, AssignmentParameter]] = None
+        constraint: pyparsing.ParseResults, parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Constraint:
     if constraint.general_constraint:
         raise NotImplementedError(f"General constraint not implemented")
 
-    return build_constraint_union(constraint.subtype_constraint.basic_constraint.unions, parameters)
+    return build_constraint_exclusions(constraint.subtype_constraint.basic_constraint, parameters)

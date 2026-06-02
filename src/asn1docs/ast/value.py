@@ -120,7 +120,7 @@ class Reference:
             ref = value_def.value_reference[0]
             return Reference(
                 value_reference=ref,
-                is_parameter=bool(parameters and (ref in parameters) and parameters[ref].is_value),
+                is_parameter=bool(parameters and (ref in parameters) and parameters[ref].parameter_type == module.ParameterType.Value),
             )
         elif value_def.external_value_reference:
             return Reference(
@@ -133,7 +133,7 @@ class Reference:
                     .value_reference[0]
                 return Reference(
                     value_reference=ref,
-                    is_parameter=bool(parameters and (ref in parameters) and parameters[ref].is_value),
+                    is_parameter=bool(parameters and (ref in parameters) and parameters[ref].parameter_type == module.ParameterType.Value),
                     parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
                                 value_def.parameterized_value.parameter_list.parameters]
                 )

@@ -1,16 +1,16 @@
 import pyparsing
 from . import lexical_items
 from . import values_types
+from . import object_class
 
 # ITU-T X.683 Section 8
 
 ParameterizedTypeAssignment = pyparsing.Forward()
 ParameterizedValueAssignment = pyparsing.Forward()
 ParameterizedValueSetTypeAssignment = pyparsing.Forward()
-# TODO: ITU-T X.681
-# ParameterizedObjectClassAssignment = pyparsing.Forward()
-# ParameterizedObjectAssignment = pyparsing.Forward()
-# ParameterizedObjectSetAssignment = pyparsing.Forward()
+ParameterizedObjectClassAssignment = pyparsing.Forward()
+ParameterizedObjectAssignment = pyparsing.Forward()
+ParameterizedObjectSetAssignment = pyparsing.Forward()
 ParameterList = pyparsing.Forward()
 Parameter = pyparsing.Forward()
 ParamGovernor = pyparsing.Forward()
@@ -21,9 +21,9 @@ ParameterizedAssignment = pyparsing.Group(
     ParameterizedTypeAssignment("type_assignment")
     | ParameterizedValueAssignment
     | ParameterizedValueSetTypeAssignment
-    # | ParameterizedObjectClassAssignment
-    # | ParameterizedObjectAssignment
-    # | ParameterizedObjectSetAssignment
+    | ParameterizedObjectClassAssignment
+    | ParameterizedObjectAssignment
+    | ParameterizedObjectSetAssignment
 )
 
 # 8.2
@@ -50,6 +50,29 @@ ParameterizedValueSetTypeAssignment <<= pyparsing.Group(
     + values_types.ValueSet
 )
 
+ParameterizedObjectClassAssignment <<= pyparsing.Group(
+    lexical_items.objectclassreference
+    + ParameterList
+    + lexical_items.assignment
+    + object_class.ObjectClass
+)
+
+ParameterizedObjectAssignment <<= pyparsing.Group(
+    lexical_items.valuereference
+    + ParameterList
+    + object_class.DefinedObjectClass
+    + lexical_items.assignment
+    + object_class.Object
+)
+
+ParameterizedObjectSetAssignment <<= pyparsing.Group(
+    lexical_items.typereference
+    + ParameterList
+    + object_class.DefinedObjectClass
+    + lexical_items.assignment
+    + object_class.ObjectSet
+)
+
 # 8.3
 ParameterList <<= pyparsing.Group(
     lexical_items.LBRACE
@@ -68,8 +91,7 @@ Parameter <<= pyparsing.Group(
 ParamGovernor <<= pyparsing.Group(Governor("governor") | values_types.Reference("dummy_reference"))
 Governor <<= pyparsing.Group(
     values_types.Type("type")
-    # TODO: ITU-T X.681
-    # | DefinedObjectClass
+    | object_class.DefinedObjectClass
 )
 
 # ITU-T X.683 Section 9
@@ -99,21 +121,20 @@ SimpleDefinedValue <<= pyparsing.Group(
     | lexical_items.valuereference("type_reference")
 )
 
-# TODO: ITU-T X.681
-# ParameterizedObjectClass <<= pyparsing.Group(
-#     DefinedObjectClass
-#     + ActualParameterList
-# )
-#
-# ParameterizedObjectSet <<= pyparsing.Group(
-#     DefinedObjectSet
-#     + ActualParameterList
-# )
-#
-# ParameterizedObject <<= pyparsing.Group(
-#     DefinedObject
-#     + ActualParameterList
-# )
+object_class.ParameterizedObjectClass <<= pyparsing.Group(
+    object_class.DefinedObjectClass
+    + ActualParameterList
+)
+
+object_class.ParameterizedObjectSet <<= pyparsing.Group(
+    object_class.DefinedObjectSet
+    + ActualParameterList
+)
+
+object_class.ParameterizedObject <<= pyparsing.Group(
+    object_class.DefinedObject
+    + ActualParameterList
+)
 
 # 9.5
 
@@ -133,7 +154,7 @@ ActualParameter <<= pyparsing.Group(
     values_types.Type("type")
     | values_types.Value("value")
     | values_types.ValueSet("value_set")
-    # | DefinedObjectClass
-    # | Object
-    # | ObjectSet
+    | object_class.DefinedObjectClass
+    | object_class.Object
+    | object_class.ObjectSet
 )

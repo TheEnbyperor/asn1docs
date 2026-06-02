@@ -6,6 +6,7 @@ from . import values_types
 from . import object_identifier
 from . import javadoc
 from . import parametisation
+from . import object_class
 
 # Keywords used in clause 13
 DEFINITIONS = pyparsing.Keyword("DEFINITIONS")
@@ -169,12 +170,9 @@ AssignedIdentifier <<= (object_identifier.ObjectIdentifierValue("oid") | values_
 SymbolList <<= pyparsing.Group(pyparsing.delimitedList(values_types.Reference))
 
 values_types.Reference <<= pyparsing.Group(
-    lexical_items.typereference("type_reference")
-    | lexical_items.valuereference("value_reference")
-    # TODO: X.681
-    # | objectclassreference
-    # | objectreference
-    # | objectsetreference
+    lexical_items.objectclassreference("object_class_reference")
+    ^ lexical_items.typereference("type_reference")
+    ^ lexical_items.valuereference("value_reference")
 )
 
 AssignmentList <<= pyparsing.Group(pyparsing.Located(pyparsing.OneOrMore(pyparsing.Group(pyparsing.Located(DocumentedAssignment)))))
@@ -185,13 +183,12 @@ DocumentedAssignment <<= pyparsing.Group(
 )
 
 Assignment <<= pyparsing.Group(
-    values_types.TypeAssignment("type_assignment")
+    object_class.ObjectClassAssignment("object_class_assignment")
+    | object_class.ObjectAssignment("object_assignment")
+    | object_class.ObjectSetAssignment("object_set_assignment")
+    | parametisation.ParameterizedAssignment("parameterised_assignment")
+    | values_types.TypeAssignment("type_assignment")
     | values_types.ValueAssignment("value_assignment")
     | values_types.ValueSetTypeAssignment("value_set_assignment")
-    # TODO: X.681
-    # | ObjectClassAssignment
-    # | ObjectAssignment
-    # | ObjectSetAssignment
-    | parametisation.ParameterizedAssignment("parameterised_assignment")
 )
 

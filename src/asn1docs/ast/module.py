@@ -1,3 +1,4 @@
+import enum
 import typing
 import dataclasses
 import pyparsing
@@ -5,9 +6,14 @@ import pyparsing
 from . import type, util, javadoc, value, highlight
 from .. import parser, oid_tree
 
+class ParameterType(enum.Enum):
+    Value = enum.auto()
+    Type = enum.auto()
+    ObjectClass = enum.auto()
+
 @dataclasses.dataclass
 class AssignmentParameter:
-    is_value: bool
+    parameter_type: ParameterType
     governor: typing.Optional["type.Type"] = None
 
 
@@ -47,10 +53,13 @@ def build_assignment_parameters(param_def: pyparsing.ParseResults) -> typing.Dic
     for parameter in param_def.parameters:
         if parameter.dummy_reference.type_reference:
             name = parameter.dummy_reference.type_reference[0]
-            is_value = False
+            parameter_type = ParameterType.Type
         elif parameter.dummy_reference.value_reference:
             name = parameter.dummy_reference.value_reference[0]
-            is_value = True
+            parameter_type = ParameterType.Value
+        elif parameter.dummy_reference.object_class_reference:
+            name = parameter.dummy_reference.object_class_reference[0]
+            parameter_type = ParameterType.ObjectClass
         else:
             util.assert_never(parameter.dummy_reference)
 
@@ -66,7 +75,7 @@ def build_assignment_parameters(param_def: pyparsing.ParseResults) -> typing.Dic
             governor = None
 
         out[name] = AssignmentParameter(
-            is_value=is_value,
+            parameter_type=parameter_type,
             governor=governor
         )
     return out
@@ -231,6 +240,12 @@ def parse_module(source: str, oid_root: "oid_tree.OIDNode") -> Module:
                 )
             else:
                 raise NotImplementedError(f"Unhandled parameterised assignment {pa}")
+        elif oca := assignment_def.value[0].assignment.object_class_assignment:
+            symbol = oca.object_class_reference[0]
+            assignment = None
+        elif oca := assignment_def.value[0].assignment.object_assignment:
+            symbol = oca.object_reference[0]
+            assignment = None
         else:
             raise NotImplementedError(f"Unhandled assignment {assignment_def.value[0].assignment}")
         module.add_assignment(symbol, assignment)

@@ -5,6 +5,7 @@ from . import object_identifier
 from . import constructed_types
 from . import constraints
 from . import javadoc
+from . import object_class
 
 BooleanType = pyparsing.Forward()
 BooleanValue = pyparsing.Forward()
@@ -21,7 +22,6 @@ OctetStringValue = pyparsing.Forward()
 NullType = pyparsing.Forward()
 NullValue = pyparsing.Forward()
 PrefixedType = pyparsing.Forward()
-PrefixedValue = pyparsing.Forward()
 TaggedType = pyparsing.Forward()
 Tag = pyparsing.Forward()
 EncodingReference = pyparsing.Forward()
@@ -30,9 +30,7 @@ Class = pyparsing.Forward()
 EncodingPrefixedType = pyparsing.Forward()
 EncodingPrefix = pyparsing.Forward()
 EmbeddedPDVType = pyparsing.Forward()
-EmbeddedPDVValue = pyparsing.Forward()
 ExternalType = pyparsing.Forward()
-ExternalValue = pyparsing.Forward()
 TimeType = pyparsing.Forward()
 TimeValue = pyparsing.Forward()
 DateType = pyparsing.Forward()
@@ -46,30 +44,33 @@ ExceptionIdentification = pyparsing.Forward()
 
 # ITU-T X.680 Section 17
 
-BuiltinType = pyparsing.Forward()
-BuiltinValue = pyparsing.Forward()
-ReferencedType = pyparsing.Forward()
-ReferencedValue = pyparsing.Forward()
-
 # 17.1
 values_types.Type <<= pyparsing.Group(
     constraints.ConstrainedType("constrained_type")
-    | BuiltinType("built_in_type")
-    | ReferencedType("referenced_type")
+    | values_types.BuiltinType("built_in_type")
+    | values_types.ReferencedType("referenced_type")
 )
 
 values_types.UnconstrainedType <<= pyparsing.Group(
-    ReferencedType("referenced_type")
-    ^ BuiltinType("built_in_type")
+    values_types.BuiltinType("built_in_type")
+    | values_types.ReferencedType("referenced_type")
 )
 
 # 17.2
-BuiltinType <<= pyparsing.Group(
+values_types.BuiltinType <<= pyparsing.Group(
     NullType("null_type")
     | BooleanType("boolean_type")
     | IntegerType("integer_type")
     | OctetStringType("octet_string_type")
     | BitStringType("bit_string_type")
+    | DateType("date_type")
+    | DateTimeType("date_time_type")
+    | DurationType("duration_type")
+    | EmbeddedPDVType("embedded_pdv_type")
+    | ExternalType("external_type")
+    | RealType("real_type")
+    | TimeType("time_type")
+    | TimeOfDayType("time_of_day_type")
     | CharacterStringType("character_string_type")
     | object_identifier.ObjectIdentifierType("object_identifier_type")
     | object_identifier.IRIType("iri_type")
@@ -81,29 +82,17 @@ BuiltinType <<= pyparsing.Group(
     | constructed_types.SequenceType("sequence_type")
     | constructed_types.SetOfType("set_of_type")
     | constructed_types.SetType("set_type")
-    # ^ DateType
-    # ^ DateTimeType
-    # ^ DurationType
-    # ^ EmbeddedPDVType
-    # ^ ExternalType
-    # TODO: ITU-T X.681
-    # | InstanceOfType
-    # TODO: ITU-T X.681
-    # | ObjectClassFieldType
-    # ^ RealType
-    # ^ PrefixedType
-    # ^ TimeType
-    # ^ TimeOfDayType
+    | PrefixedType("prefixed_type")
+    | object_class.InstanceOfType("instance_of_type")
+    | object_class.ObjectClassFieldType("object_class_field_type")
 )
 
 # 17.3
-ReferencedType <<= pyparsing.Group(
+values_types.ReferencedType <<= pyparsing.Group(
     values_types.DefinedType("defined_type")
     | UsefulType("useful_type")
     | constructed_types.SelectionType("selection_type")
-    # TODO: ITU-T X.681
-    # | TypeFromObject
-    # | ValueSetFromObjects
+    | object_class.InformationFromObject
 )
 
 # 17.5
@@ -113,14 +102,13 @@ values_types.NamedType <<= pyparsing.Group(
 
 # 17.7
 values_types.Value <<= pyparsing.Group(
-    ReferencedValue("referenced_value")
-    ^ BuiltinValue("built_in_value")
-    # TODO: ITU-T X.681
-    # | ObjectClassFieldValue
+    values_types.ReferencedValue("referenced_value")
+    ^ values_types.BuiltinValue("built_in_value")
+    ^ object_class.ObjectClassFieldValue("object_class_field_value")
 )
 
 # 17.9
-BuiltinValue <<= pyparsing.Group(
+values_types.BuiltinValue <<= pyparsing.Group(
     constructed_types.ChoiceValue("choice_value")
     | constructed_types.SequenceValue("sequence_value")
     | constructed_types.SequenceOfValue("sequence_of_value")
@@ -130,25 +118,19 @@ BuiltinValue <<= pyparsing.Group(
     | IntegerValue("integer_value")
     | CharacterStringValue("character_string_value")
     | OctetStringValue("octet_string_value")
+    | BitStringValue("bit_string_value")
     | object_identifier.ObjectIdentifierValue("object_identifier_value")
-    # BitStringValue
-    # ^ EmbeddedPDVValue
-    # ^ ExternalValue
-    # TODO: ITU-T X.681
-    # | InstanceOfValue
-    # ^ object_identifier.IRIValue
-    # ^ RealValue
-    # ^ object_identifier.RelativeIRIValue
-    # ^ object_identifier.RelativeOIDValue
-    # ^ PrefixedValue
-    # ^ TimeValue
+    | object_identifier.RelativeOIDValue("relative_oid_value")
+    | object_identifier.IRIValue("iri_value")
+    | object_identifier.RelativeIRIValue("relative_iri_value")
+    | RealValue("real_value")
+    | TimeValue("time_value")
 )
 
 # 17.11
-ReferencedValue <<= pyparsing.Group(
+values_types.ReferencedValue <<= pyparsing.Group(
     values_types.DefinedValue("defined_value")
-    # TODO: ITU-T X.681
-    # | ValueFromObject
+    | object_class.InformationFromObject
 )
 
 # 17.13
@@ -325,14 +307,13 @@ PrefixedType <<= pyparsing.Group(
     | EncodingPrefixedType
 )
 
-# 31.1.6
-PrefixedValue <<= values_types.Value
-
 # 31.2.1
 TaggedType <<= pyparsing.Group(
-    (Tag + values_types.Type)
-    | (Tag + pyparsing.Keyword("IMPLICIT") + values_types.Type)
-    | (Tag + pyparsing.Keyword("EXPLICIT") + values_types.Type)
+    Tag + (
+        values_types.Type
+        | (pyparsing.Keyword("IMPLICIT") + values_types.Type)
+        | (pyparsing.Keyword("EXPLICIT") + values_types.Type)
+    )
 )
 
 Tag <<= pyparsing.Group(
@@ -372,16 +353,10 @@ EncodingPrefix <<= pyparsing.Group(
 # 36.1
 EmbeddedPDVType <<= pyparsing.Keyword("EMBEDDED PDV")
 
-# 36.8
-EmbeddedPDVValue <<= constructed_types.SequenceValue
-
 # ITU-T X.660 Section 70
 
 # 37.1
 ExternalType <<= pyparsing.Keyword("EXTERNAL")
-
-# 37.7
-ExternalValue <<= constructed_types.SequenceValue
 
 # ITU-T X.680 Section 38
 

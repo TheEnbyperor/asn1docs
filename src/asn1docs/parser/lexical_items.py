@@ -117,7 +117,42 @@ RESERVED_WORDS = [
     "VisibleString",
     "WITH"
 ]
-reserved_word = pyparsing.MatchFirst([pyparsing.Keyword(w) for w in RESERVED_WORDS])
+WORD_RESERVED_WORDS = [
+    "ABSTRACT-SYNTAX",
+    "BIT",
+    "BOOLEAN",
+    "CHARACTER",
+    "CHOICE",
+    "CONTAINING",
+    "DATE",
+    "DATE-TIME",
+    "DURATION",
+    "EMBEDDED",
+    "END",
+    "ENUMERATED",
+    "EXTERNAL",
+    "FALSE",
+    "INSTANCE",
+    "INTEGER",
+    "MINUS-INFINITY",
+    "NOT-A-NUMBER",
+    "NULL",
+    "OBJECT",
+    "OCTET",
+    "OID-IRI",
+    "PLUS-INFINITY",
+    "REAL",
+    "RELATIVE-OID",
+    "RELATIVE-OID-IRI",
+    "SEQUENCE",
+    "SET",
+    "TIME",
+    "TIME-OF-DAY",
+    "TRUE",
+    "TYPE-IDENTIFIER"
+]
+reserved_word = pyparsing.MatchFirst([pyparsing.Keyword(w, ident_chars=pyparsing.alphanums + "-") for w in RESERVED_WORDS])
+word_reserved_word = pyparsing.MatchFirst([pyparsing.Keyword(w, ident_chars=pyparsing.alphanums + "-") for w in WORD_RESERVED_WORDS])
 
 # 12.2 typereference
 typereference = (~reserved_word + hyphenated_word(UPPER, IDENT_BODY))
@@ -239,3 +274,15 @@ single_char_lexicals = pyparsing.MatchFirst(
         AT, BAR, BANG, CARET,
     ]
 )
+
+# 7.1 object class reference
+objectclassreference = (~reserved_word + hyphenated_word(UPPER, UPPER + DIGITS))
+
+# 7.4 type field reference
+typefieldreference = (pyparsing.Literal("&") + typereference)
+
+# 7.5 value field reference
+valuefieldreference = (pyparsing.Literal("&") + valuereference)
+
+# 7.9 word
+word = (~word_reserved_word + hyphenated_word(UPPER, UPPER))

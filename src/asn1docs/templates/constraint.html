@@ -61,6 +61,14 @@
                 </p>
             {% endif %}
         </div>
+    {% elif con.CONSTRAINT_TYPE == "SINGLE_VALUE" %}
+        <div class="constraint card">
+            <h4>Single value constraint</h4>
+            <p>
+                The value must be exactly:
+                {{ value.value(con.value, module, context) }}
+            </p>
+        </div>
     {% elif con.CONSTRAINT_TYPE == "PERMITTED_ALPHABET" %}
         <div class="constraint card">
             <h4>Permitted alphabet constraint</h4>
@@ -74,7 +82,7 @@
         {{ constraint(con.left, module, context) }}
         <p><b>AND</b></p>
         {{ constraint(con.right, module, context) }}
-        <div>
+        </div>
     {% elif con.CONSTRAINT_TYPE == "UNION" %}
         <div class="constraint card">
         <h4>Union</h4>
@@ -82,6 +90,8 @@
         {{ constraint(con.left, module, context) }}
         <p><b>OR</b></p>
         {{ constraint(con.right, module, context) }}
-        <div>
+        </div>
+    {% else %}
+        {{ con }}
     {% endif %}
 {% endmacro %}
