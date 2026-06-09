@@ -1,0 +1,113 @@
+{% import "javadoc.html" as javadoc %}
+{% import "value.html" as value %}
+{% import "type.html" as type %}
+{% import "constraint.html" as constraint %}
+
+{% macro object_class(def, module, context) %}
+    <span class="tag type-tag">OBJECT CLASS</span>
+    <p>This object class has the following fields:</p>
+    <dl class="fields">
+        {% for k, v in def.fields.items() %}
+            <dt>
+                {{ k }}
+                {% if v.optional %}
+                    <span class="tag optional-tag">Optional</span>
+                {% endif %}
+                {% if v.default %}
+                    <span class="tag optional-tag">Default value defined</span>
+                {% endif %}
+            </dt>
+            <dd>
+                {% if v.javadoc %}
+                    {{ javadoc.javadoc(v.javadoc) }}
+                {% endif %}
+                {% if v.FIELD_TYPE == "TYPE" %}
+                    <p>This field accepts any concrete type.</p>
+                    {% if v.default %}
+                        <p>
+                            This field, when unset, defaults to the following type:
+                            {{ type.type(v.default, module, context) }}
+                        </p>
+                    {% endif %}
+                {% elif v.FIELD_TYPE == "FIXED_TYPE_VALUE" %}
+                    <p>This field accepts any value of the following type:</p>
+                    {{ type.type(v.type, module, context) }}
+                    {% if v.unique %}
+                        <p>This field must be unique within an object set.</p>
+                    {% endif %}
+                    {% if v.default %}
+                        <p>
+                            This field, when unset, defaults to the following value:
+                            {{ type.type(v.default, module, context) }}
+                        </p>
+                    {% endif %}
+                {% endif %}
+            </dd>
+        {% endfor %}
+    </dl>
+{% endmacro %}
+
+{% macro object_set(def, module, context) %}
+    <span class="tag type-tag">OBJECT SET</span>
+    <p>This object set has the following members:</p>
+    {% with object_class = context.resolve_class_reference(def.object_class) %}
+        <table>
+            <thead>
+            <tr>
+                {% for k in object_class.fields.keys() %}
+                    <th>{{ k }}</th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tbody>
+            {% for member in def.object_set.members %}
+                <tr>
+                    {% with object = context.resolve_object_reference(member) %}
+                        {% with object_def = object.parse_definition(object_class, context) %}
+                            {% for k in object_class.fields.keys() %}
+                                {% with v = object_def.fields[k] %}
+                                    {% if v.is_type %}
+                                        <td>{{ type.type(v, module, context) }}</td>
+                                    {% elif v.is_value %}
+                                        <td>{{ value.value(v, module, context) }}</td>
+                                    {% endif %}
+                                {% endwith %}
+                            {% endfor %}
+                        {% endwith %}
+                    {% endwith %}
+                </tr>
+            {% endfor %}
+            {% if def.object_set.extensible %}
+                <tr>
+                    <td colspan="{{ object_class.fields|length }}"><i>Other members may be added at runtime.</i></td>
+                </tr>
+            {% endif %}
+            </tbody>
+        </table>
+    {% endwith %}
+{% endmacro %}
+
+{% macro object(def, module, context) %}
+    <span class="tag type-tag">OBJECT</span>
+    <p>This object has the following field values:</p>
+    {% with object_class = context.resolve_class_reference(def.object_class) %}
+        {% with object = context.resolve_object_reference(def.object) %}
+            {% with object_def = object.parse_definition(object_class, context) %}
+                <dl class="fields">
+                    {% for k in object_class.fields.keys() %}
+                        <dt>{{ k }}</dt>
+                        <dd>
+                            {% with v = object_def.fields[k] %}
+                                {% if v.is_type %}
+                                    {{ type.type(v, module, context) }}
+                                {% elif v.is_value %}
+                                    {{ value.value(v, module, context) }}
+                                {% endif %}
+                            {% endwith %}
+                        </dd>
+                    {% endfor %}
+                </dl>
+            {% endwith %}
+        {% endwith %}
+    {% endwith %}
+{% endmacro %}

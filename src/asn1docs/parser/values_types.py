@@ -4,6 +4,14 @@ from . import lexical_items
 Reference = pyparsing.Forward()
 ParameterizedType = pyparsing.Forward()
 ParameterizedValue = pyparsing.Forward()
+Governor = pyparsing.Forward()
+ObjectClass = pyparsing.Forward()
+Object = pyparsing.Forward()
+ObjectSet = pyparsing.Forward()
+ObjectSetElements = pyparsing.Forward()
+DefinedObjectClass = pyparsing.Forward()
+DefinedObject = pyparsing.Forward()
+DefinedObjectSet = pyparsing.Forward()
 
 # ITU-T X.680 Section 14
 
@@ -42,15 +50,23 @@ ReferencedType = pyparsing.Forward()
 ReferencedValue = pyparsing.Forward()
 
 TypeAssignment = pyparsing.Group(
-    lexical_items.typereference("type_reference") + lexical_items.assignment + Type("type")
+    lexical_items.typereference("type_reference")
+    + lexical_items.assignment
+    + Type("type")
 )
 
 ValueAssignment = pyparsing.Group(
-    lexical_items.valuereference("value_reference") + Type("type") + lexical_items.assignment + Value("value")
+    lexical_items.valuereference("value_reference")
+    + Type("type")
+    + lexical_items.assignment
+    + Value("value")
 )
 
 ValueSetTypeAssignment = pyparsing.Group(
-    lexical_items.typereference("type_reference") + Type("type") + lexical_items.assignment + ValueSet("value_set")
+    lexical_items.typereference("type_reference")
+    + Type("type")
+    + lexical_items.assignment
+    + ValueSet("value_set")
 )
 
 ValueSet <<= pyparsing.Group(

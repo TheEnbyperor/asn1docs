@@ -1,53 +1,99 @@
+import abc
 import typing
 import dataclasses
 import enum
 import pyparsing
-from . import value, util, javadoc, constraint, module
+from . import value, util, javadoc, constraint, module, object
+from .. import context
 
-Type = typing.Union[
-    "Reference", "Null", "Boolean", "Integer", "OctetString", "BitString", "CharacterString",
-    "ObjectIdentifier", "Sequence", "SequenceOf", "Choice", "Enumeration", "ConstrainedType"
-]
+
+class Type(metaclass=abc.ABCMeta):
+    TYPE_NAME: str
+
+    @property
+    def is_type(self):
+        return True
+
+    @property
+    def is_value(self):
+        return False
+
+    @abc.abstractmethod
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        raise NotImplementedError()
+
+    def is_item_of(self, ref: value.Reference) -> bool:
+        return False
 
 
 @dataclasses.dataclass
-class Reference:
+class Reference(Type):
     TYPE_NAME = "TYPE_REFERENCE"
 
+    module: module.Module
     type_reference: str
     module_reference: typing.Optional[str] = None
     is_parameter: bool = False
     parameters: typing.List["util.ReferenceParameter"] = dataclasses.field(default_factory=list)
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
 
 @dataclasses.dataclass
-class Null:
+class Any(Type):
+    TYPE_NAME = "ANY"
+
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return True
+
+
+@dataclasses.dataclass
+class Null(Type):
     TYPE_NAME = "NULL"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
 
 @dataclasses.dataclass
-class Boolean:
+class Boolean(Type):
     TYPE_NAME = "BOOLEAN"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.Boolean)
+
 
 @dataclasses.dataclass
-class Integer:
+class Integer(Type):
     TYPE_NAME = "INTEGER"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.Integer)
+
 
 @dataclasses.dataclass
-class OctetString:
+class OctetString(Type):
     TYPE_NAME = "OCTET_STRING"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
 
 @dataclasses.dataclass
-class BitString:
+class BitString(Type):
     TYPE_NAME = "BIT_STRING"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
 
 @dataclasses.dataclass
-class ObjectIdentifier:
+class ObjectIdentifier(Type):
     TYPE_NAME = "OBJECT_IDENTIFIER"
+
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.ObjectIdentifier)
 
 
 class CharacterStringType(enum.Enum):
@@ -67,10 +113,13 @@ class CharacterStringType(enum.Enum):
 
 
 @dataclasses.dataclass
-class CharacterString:
+class CharacterString(Type):
     TYPE_NAME = "CHARACTER_STRING"
 
     string_type: CharacterStringType
+
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.CharacterString)
 
 
 @dataclasses.dataclass
@@ -82,14 +131,18 @@ class SequenceComponent:
 
 
 @dataclasses.dataclass
-class Sequence:
+class Sequence(Type):
     TYPE_NAME = "SEQUENCE"
 
     components: typing.Dict[str, SequenceComponent]
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.Sequence) and set(self.components.keys()) == set(value_instance.fields.keys())
+
     @classmethod
     def build_type(
             cls, type_def: pyparsing.ParseResults,
+            m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
     ) -> "Sequence":
         components = {}
@@ -117,8 +170,8 @@ class Sequence:
                     if component_name in components:
                         raise SyntaxError(f"Duplicate component {component_name} in SEQUENCE")
 
-                    component_type = build_type(named_type.type[0], parameters)
-                    default_value = value.build_value(default, parameters) if default else None
+                    component_type = build_type(named_type.type[0], m, parameters)
+                    default_value = value.build_value(default, m, parameters) if default else None
 
                     components[component_name] = SequenceComponent(
                         type_definition=component_type,
@@ -137,10 +190,17 @@ class EnumerationItem:
 
 
 @dataclasses.dataclass
-class Enumeration:
+class Enumeration(Type):
     TYPE_NAME = "ENUMERATION"
 
     values: typing.List[EnumerationItem]
+
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.Enumeration) and value_instance.value in [v.name for v in self.values]
+
+    def is_item_of(self, ref: value.Reference) -> bool:
+        return any(e.name == ref.value_reference for e in self.values) and ref.module_reference is None
+
 
     @classmethod
     def build_type(
@@ -166,17 +226,21 @@ class Enumeration:
 @dataclasses.dataclass
 class ChoiceComponent:
     type_definition: Type
-    javadoc: typing.Optional[JavaDoc] = None
+    javadoc: typing.Optional["javadoc.JavaDoc"] = None
 
 
 @dataclasses.dataclass
-class Choice:
+class Choice(Type):
     TYPE_NAME = "CHOICE"
     components: typing.Dict[str, ChoiceComponent]
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return isinstance(value_instance, value.Choice) and value_instance.variant in self.components \
+            and self.components[value_instance.variant].type_definition.acceptable_value(value_instance.value)
+
     @classmethod
     def build_type(
-            cls, type_def: pyparsing.ParseResults,
+            cls, type_def: pyparsing.ParseResults, m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
     ) -> "Choice":
         components = {}
@@ -186,7 +250,7 @@ class Choice:
                     component_name = component.named_type.type_name[0]
                     if component_name in components:
                         raise SyntaxError(f"Duplicate alternate {component_name} in CHOICE")
-                    component_type = build_type(component.named_type.type[0], parameters)
+                    component_type = build_type(component.named_type.type[0], m, parameters)
                     components[component_name] = ChoiceComponent(
                         type_definition=component_type,
                         javadoc=javadoc.JavaDoc.build(component.javadoc) if component.javadoc else None,
@@ -195,30 +259,34 @@ class Choice:
 
 
 @dataclasses.dataclass
-class SequenceOf:
+class SequenceOf(Type):
     TYPE_NAME = "SEQUENCE_OF"
 
     inner_type_definition: Type
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
     @classmethod
     def build_sequence_of_type(
-            cls, type_def: pyparsing.ParseResults,
+            cls, type_def: pyparsing.ParseResults, m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
     ) -> "SequenceOf":
         return cls(
-            inner_type_definition=build_type(type_def.type, parameters),
+            inner_type_definition=build_type(type_def.type, m, parameters),
         )
 
     @classmethod
     def build_size_sequence_of_type(
             cls, type_def: pyparsing.ParseResults,
+            inner_type: Type, m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
     ) -> "ConstrainedType":
-        inner_type_definition = build_type(type_def.type, parameters)
+        inner_type_definition = build_type(type_def.type, m, parameters)
         constraint_spec = type_def.size_constraint.constraint[0].constraint_spec
         if constraint_spec.general_constraint:
             raise SyntaxError(f"General constraint invalid in a size constraint")
-        inner_constraint = constraint.build_constraint(constraint_spec, parameters)
+        inner_constraint = constraint.build_constraint(constraint_spec, inner_type, m, parameters)
         if not isinstance(inner_constraint, constraint.ValueRange):
             raise SyntaxError("Size constraint inner constraint is not a ValueRange")
         return ConstrainedType(
@@ -230,17 +298,64 @@ class SequenceOf:
             )
         )
 
+
 @dataclasses.dataclass
-class ConstrainedType:
+class ConstrainedType(Type):
     TYPE_NAME = "CONSTRAINED_TYPE"
 
     inner_type_definition: Type
     constraints: "constraint.Constraint"
 
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return self.inner_type_definition.acceptable_value(value_instance)
+
+
+@dataclasses.dataclass
+class ObjectClassField(Type):
+    TYPE_NAME = "OBJECT_CLASS_FIELD"
+
+    object_class: object.ClassReference
+    field: typing.List[str]
+
+    def acceptable_value(self, value_instance: value.Value) -> bool:
+        return False
+
+    def resolve_type(self, c: context.Context) -> Type:
+        if len(self.field) != 1:
+            raise NotImplementedError("Object class field reference too complex")
+        object_class = c.resolve_class_reference(self.object_class)
+        if self.field[0] not in object_class.fields:
+            raise SyntaxError(f"Field {self.field[0]} does not exist in object class")
+        field = object_class.fields[self.field[0]]
+        if isinstance(field, object.TypeField):
+            return Any()
+        elif isinstance(field, object.FixedTypeValueField):
+            return field.type
+        else:
+            util.assert_never(field)
+
+    @classmethod
+    def build_type(
+            cls, type_def: pyparsing.ParseResults, m: module.Module,
+            parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
+    ) -> "ObjectClassField":
+        field = []
+        for component in type_def.field_name[0]:
+            if component.type_field_reference:
+                field.append(component.type_field_reference)
+            elif component.value_field_reference:
+                field.append(component.value_field_reference)
+            else:
+                util.assert_never(component)
+        return ObjectClassField(
+            object_class=object.ClassReference.build(type_def.object_class[0], m, parameters),
+            field=field,
+        )
 
 
 def build_type(
         type_def: pyparsing.ParseResults,
+        m: module.Module,
         parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Type:
     if type_def.built_in_type:
@@ -271,15 +386,15 @@ def build_type(
             else:
                 util.assert_never(type_def.built_in_type.character_string_type)
         elif type_def.built_in_type.choice_type:
-            return Choice.build_type(type_def.built_in_type.choice_type, parameters)
+            return Choice.build_type(type_def.built_in_type.choice_type, m, parameters)
         elif type_def.built_in_type.sequence_type:
-            return Sequence.build_type(type_def.built_in_type.sequence_type, parameters)
+            return Sequence.build_type(type_def.built_in_type.sequence_type, m, parameters)
         elif type_def.built_in_type.enumerated_type:
             return Enumeration.build_type(type_def.built_in_type.enumerated_type, parameters)
         elif type_def.built_in_type.sequence_of_type:
-            return SequenceOf.build_sequence_of_type(type_def.built_in_type.sequence_of_type, parameters)
+            return SequenceOf.build_sequence_of_type(type_def.built_in_type.sequence_of_type, m, parameters)
         elif type_def.built_in_type.object_class_field_type:
-            pass
+            return ObjectClassField.build_type(type_def.built_in_type.object_class_field_type, m, parameters)
         else:
             raise NotImplementedError(f"Unhandled built-in type {type_def.built_in_type}")
     elif type_def.referenced_type:
@@ -287,30 +402,36 @@ def build_type(
             if type_def.referenced_type.defined_type.type_reference:
                 ref = type_def.referenced_type.defined_type.type_reference[0]
                 return Reference(
+                    module=m,
                     type_reference=ref,
-                    is_parameter=bool(parameters and ref in parameters and parameters[ref].parameter_type == module.ParameterType.Type),
+                    is_parameter=bool(parameters and ref in parameters and parameters[
+                        ref].parameter_type == module.ParameterType.Type),
                 )
             elif type_def.referenced_type.defined_type.external_type_reference:
                 return Reference(
-                    type_def.referenced_type.defined_type.external_type_reference.type_reference[0],
-                    type_def.referenced_type.defined_type.external_type_reference.module_reference[0]
+                    module=m,
+                    type_reference=type_def.referenced_type.defined_type.external_type_reference.type_reference[0],
+                    module_reference=type_def.referenced_type.defined_type.external_type_reference.module_reference[0]
                 )
             elif type_def.referenced_type.defined_type.parameterized_type:
                 if type_def.referenced_type.defined_type.parameterized_type.simple_defined_type.type_reference:
                     ref = type_def.referenced_type.defined_type.parameterized_type.simple_defined_type.type_reference[0]
                     return Reference(
+                        module=m,
                         type_reference=ref,
-                        is_parameter=bool(parameters and ref in parameters and parameters[ref].parameter_type == module.ParameterType.Type),
-                        parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
+                        is_parameter=bool(parameters and ref in parameters and parameters[
+                            ref].parameter_type == module.ParameterType.Type),
+                        parameters=[util.ReferenceParameter.build(parameter, m, parameters) for parameter in
                                     type_def.referenced_type.defined_type.parameterized_type.parameter_list.parameters]
                     )
                 elif type_def.referenced_type.defined_type.parameterized_type.simple_defined_type.external_type_reference:
                     return Reference(
-                        type_def.referenced_type.defined_type.parameterized_type.simple_defined_type\
+                        module=m,
+                        type_reference=type_def.referenced_type.defined_type.parameterized_type.simple_defined_type \
                             .external_type_reference.type_reference[0],
-                        type_def.referenced_type.defined_type.parameterized_type.simple_defined_type\
+                        module_reference=type_def.referenced_type.defined_type.parameterized_type.simple_defined_type \
                             .external_type_reference.module_reference[0],
-                        parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
+                        parameters=[util.ReferenceParameter.build(parameter, m, parameters) for parameter in
                                     type_def.referenced_type.defined_type.parameterized_type.parameter_list.parameters]
                     )
                 else:
@@ -322,28 +443,32 @@ def build_type(
     elif type_def.constrained_type:
         if type_def.constrained_type.type_of_with_constraint:
             if type_def.constrained_type.type_of_with_constraint.sequence_of_type:
+                inner_type = SequenceOf.build_sequence_of_type(
+                        type_def.constrained_type.type_of_with_constraint.sequence_of_type,
+                        m, parameters,
+                    )
                 return ConstrainedType(
-                    inner_type_definition=SequenceOf.build_sequence_of_type(
-                        type_def.constrained_type.type_of_with_constraint.sequence_of_type
-                    ),
+                    inner_type_definition=inner_type,
                     constraints=constraint.build_constraint(
                         type_def.constrained_type.type_of_with_constraint.sequence_of_type.constraint.constraint_spec,
-                        parameters
+                        inner_type, m, parameters
                     )
                 )
             elif type_def.constrained_type.type_of_with_constraint.size_sequence_of_type:
                 return SequenceOf.build_size_sequence_of_type(
-                    type_def.constrained_type.type_of_with_constraint.size_sequence_of_type
+                    type_def.constrained_type.type_of_with_constraint.size_sequence_of_type,
+                    m, parameters,
                 )
             else:
                 raise NotImplementedError(
                     f"Unhandled constrained type {type_def.constrained_type.type_of_with_constraint}")
         elif type_def.constrained_type.constrained_type:
+            inner_type = build_type(type_def.constrained_type.constrained_type.inner_type, m, parameters)
             return ConstrainedType(
-                inner_type_definition=build_type(type_def.constrained_type.constrained_type.inner_type, parameters),
+                inner_type_definition=inner_type,
                 constraints=constraint.build_constraint(
                     type_def.constrained_type.constrained_type.constraint.constraint_spec,
-                    parameters
+                    inner_type, m, parameters
                 )
             )
         else:

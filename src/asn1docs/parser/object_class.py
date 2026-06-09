@@ -3,10 +3,6 @@ from . import lexical_items
 from . import values_types
 from . import constraints
 
-ObjectClass = pyparsing.Forward()
-Object = pyparsing.Forward()
-ObjectSet = pyparsing.Forward()
-
 # ITU-T X.681 Section 8
 
 ExternalObjectClassReference = pyparsing.Forward()
@@ -15,35 +11,35 @@ ExternalObjectSetReference = pyparsing.Forward()
 UsefulObjectClassReference = pyparsing.Forward()
 
 # 8.1
-DefinedObjectClass = pyparsing.Group(
-    ExternalObjectClassReference
+values_types.DefinedObjectClass <<= pyparsing.Group(
+    ExternalObjectClassReference("external_class_reference")
     | lexical_items.objectclassreference("object_class_reference")
-    | UsefulObjectClassReference
+    | UsefulObjectClassReference("useful_object_class_reference")
 )
-DefinedObject = pyparsing.Group(
-    ExternalObjectReference
+values_types.DefinedObject <<= pyparsing.Group(
+    ExternalObjectReference("external_object_reference")
     | lexical_items.valuereference("object_reference")
 )
-DefinedObjectSet = pyparsing.Group(
-    ExternalObjectSetReference
+values_types.DefinedObjectSet <<= pyparsing.Group(
+    ExternalObjectSetReference("external_object_set_reference")
     | lexical_items.typereference("object_set_reference")
 )
 
 # 8.3
 ExternalObjectClassReference <<= pyparsing.Group(
-    lexical_items.modulereference
+    lexical_items.modulereference("module_reference")
     + lexical_items.DOT
-    + lexical_items.objectclassreference
+    + lexical_items.objectclassreference("object_class_reference")
 )
 
 ExternalObjectReference <<= pyparsing.Group(
-    lexical_items.modulereference
+    lexical_items.modulereference("module_reference")
     + lexical_items.DOT
     + lexical_items.valuereference("object_reference")
 )
 
 ExternalObjectSetReference <<= pyparsing.Group(
-    lexical_items.modulereference
+    lexical_items.modulereference("module_reference")
     + lexical_items.DOT
     + lexical_items.typereference("object_set_reference")
 )
@@ -80,14 +76,14 @@ FieldName = pyparsing.Forward()
 ObjectClassAssignment = pyparsing.Group(
     lexical_items.objectclassreference("object_class_reference")
     + lexical_items.assignment
-    + ObjectClass("object_class")
+    + values_types.ObjectClass("object_class")
 )
 
 # 9.2
-ObjectClass <<= pyparsing.Group(
-    ObjectClassDefn
-    | DefinedObjectClass
-    | ParameterizedObjectClass
+values_types.ObjectClass <<= pyparsing.Group(
+    ParameterizedObjectClass("parameterized_object_class")
+    | ObjectClassDefn("object_class_defn")
+    | values_types.DefinedObjectClass("defined_object_class")
 )
 
 # 9.3
@@ -98,60 +94,60 @@ ObjectClassDefn <<= pyparsing.Group(
         FieldSpec,
         delim=lexical_items.COMMA,
         min=1
-    )
+    )("field_spec")
     + lexical_items.RBRACE
-    + pyparsing.Optional(WithSyntaxSpec)
+    + pyparsing.Optional(WithSyntaxSpec("with_syntax"))
 )
 
 WithSyntaxSpec <<= pyparsing.Group(
-    pyparsing.Keyword("WITH SYNTAX") + SyntaxList
+    pyparsing.Keyword("WITH SYNTAX") + SyntaxList("syntax")
 )
 
 # 9.4
-FieldSpec <<= pyparsing.Forward(
-    TypeFieldSpec
-    | FixedTypeValueFieldSpec
-    | VariableTypeValueFieldSpec
-    | FixedTypeValueSetFieldSpec
-    | VariableTypeValueSetFieldSpec
-    | ObjectFieldSpec
-    | ObjectSetFieldSpec
+FieldSpec <<= pyparsing.Group(
+    TypeFieldSpec("type_field")
+    | FixedTypeValueFieldSpec("fixed_type_value_field")
+    | VariableTypeValueFieldSpec("variable_type_value_field")
+    | FixedTypeValueSetFieldSpec("fixed_type_value_set_field")
+    | VariableTypeValueSetFieldSpec("variable_type_value_set_field")
+    | ObjectFieldSpec("object_field")
+    | ObjectSetFieldSpec("object_set_field")
 )
 
 # 9.5
 TypeFieldSpec <<= pyparsing.Group(
-    lexical_items.typefieldreference
-    + pyparsing.Optional(TypeOptionalitySpec)
+    lexical_items.typefieldreference("reference")
+    + pyparsing.Optional(TypeOptionalitySpec("optionality"))
 )
 
 TypeOptionalitySpec <<= pyparsing.Group(
-    pyparsing.Keyword("OPTIONAL")
-    | (pyparsing.Keyword("DEFAULT") + values_types.Type)
+    pyparsing.Keyword("OPTIONAL")("optional")
+    | (pyparsing.Keyword("DEFAULT") + values_types.Type("default"))
 )
 
 # 9.6
 FixedTypeValueFieldSpec <<= pyparsing.Group(
-    lexical_items.valuefieldreference
-    + values_types.Type
-    + pyparsing.Optional(pyparsing.Keyword("UNIQUE"))
-    + pyparsing.Optional(ValueOptionalitySpec)
+    lexical_items.valuefieldreference("reference")
+    + values_types.Type("type")
+    + pyparsing.Optional(pyparsing.Keyword("UNIQUE")("unique"))
+    + pyparsing.Optional(ValueOptionalitySpec("optionality"))
 )
 
 ValueOptionalitySpec <<= pyparsing.Group(
-    pyparsing.Keyword("OPTIONAL")
-    | (pyparsing.Keyword("DEFAULT") + values_types.Value)
+    pyparsing.Keyword("OPTIONAL")("optional")
+    | (pyparsing.Keyword("DEFAULT") + values_types.Value("default"))
 )
 
 # 9.8
 VariableTypeValueFieldSpec <<= pyparsing.Group(
-    lexical_items.valuefieldreference
-    + FieldName
+    lexical_items.valuefieldreference("reference")
+    + FieldName("field_name")
     + pyparsing.Optional(ValueOptionalitySpec)
 )
 
 # 9.9
 FixedTypeValueSetFieldSpec <<= pyparsing.Group(
-    lexical_items.typefieldreference("value_set_field_reference")
+    lexical_items.typefieldreference("reference")
     + values_types.Type
     + pyparsing.Optional(ValueSetOptionalitySpec)
 )
@@ -163,47 +159,47 @@ ValueSetOptionalitySpec <<= pyparsing.Group(
 
 # 9.10
 VariableTypeValueSetFieldSpec <<= pyparsing.Group(
-    lexical_items.typefieldreference("value_set_field_reference")
-    + FieldName
+    lexical_items.typefieldreference("reference")
+    + FieldName("field_name")
     + pyparsing.Optional(ValueSetOptionalitySpec)
 )
 
 # 9.11
 ObjectFieldSpec <<= pyparsing.Group(
-    lexical_items.valuefieldreference("object_field_reference")
-    + DefinedObjectClass
+    lexical_items.valuefieldreference("reference")
+    + values_types.DefinedObjectClass
     + pyparsing.Optional(ObjectOptionalitySpec)
 )
 
 ObjectOptionalitySpec <<= pyparsing.Group(
     pyparsing.Keyword("OPTIONAL")
-    | (pyparsing.Keyword("DEFAULT") + Object)
+    | (pyparsing.Keyword("DEFAULT") + values_types.Object)
 )
 
 # 9.12
 ObjectSetFieldSpec <<= pyparsing.Group(
-    lexical_items.typefieldreference("object_set_field_reference")
-    + DefinedObjectClass
+    lexical_items.typefieldreference("reference")
+    + values_types.DefinedObjectClass
     + pyparsing.Optional(ObjectSetOptionalitySpec)
 )
 
 ObjectSetOptionalitySpec <<= pyparsing.Group(
     pyparsing.Keyword("OPTIONAL")
-    | (pyparsing.Keyword("DEFAULT") + ObjectSet)
+    | (pyparsing.Keyword("DEFAULT") + values_types.ObjectSet)
 )
 
 # 9.13
 PrimitiveFieldName <<= pyparsing.Group(
-    lexical_items.typefieldreference
-    ^ lexical_items.valuefieldreference
+    lexical_items.typefieldreference("type_field_reference")
+    ^ lexical_items.valuefieldreference("value_field_reference")
 )
 
 # 9.14
-FieldName <<= pyparsing.DelimitedList(
+FieldName <<= pyparsing.Group(pyparsing.DelimitedList(
     PrimitiveFieldName,
     delim=lexical_items.DOT,
     min=1
-)
+))
 
 # ITU-T X.681 Section 10
 
@@ -215,24 +211,27 @@ Literal = pyparsing.Forward()
 # 10.5
 SyntaxList <<= pyparsing.Group(
     lexical_items.LBRACE
-    + pyparsing.OneOrMore(TokenOrGroupSpec)
+    + pyparsing.OneOrMore(TokenOrGroupSpec)("token_or_groups")
     + lexical_items.RBRACE
 )
 
-TokenOrGroupSpec <<= pyparsing.Group(OptionalGroup | RequiredToken)
+TokenOrGroupSpec <<= pyparsing.Group(
+    OptionalGroup("optional_group")
+    | RequiredToken("required_token")
+)
 
 OptionalGroup <<= pyparsing.Group(
     lexical_items.LBRACK
-    + pyparsing.OneOrMore(TokenOrGroupSpec)
+    + pyparsing.OneOrMore(TokenOrGroupSpec)("token_or_groups")
     + lexical_items.RBRACK
 )
 
 RequiredToken <<= pyparsing.Group(
-    Literal
-    ^ PrimitiveFieldName
+    Literal("literal")
+    ^ PrimitiveFieldName("field_name")
 )
 
-Literal <<= pyparsing.Group(
+Literal <<= pyparsing.Combine(
     lexical_items.word
     ^ ","
 )
@@ -251,14 +250,14 @@ DefinedSyntaxToken = pyparsing.Forward()
 # 11.1
 ObjectAssignment = pyparsing.Group(
     lexical_items.valuereference("object_reference")
-    + DefinedObjectClass("defined_object_class")
+    + values_types.DefinedObjectClass("object_class")
     + lexical_items.assignment
-    + Object("object")
+    + values_types.Object("object")
 )
 
 # 11.3
-Object <<= pyparsing.Group(
-    DefinedObject("defined_object")
+values_types.Object <<= pyparsing.Group(
+    values_types.DefinedObject("defined_object")
     | ObjectDefn("object_definition")
     | ObjectFromObject("object_from_object")
     | ParameterizedObject("parameterized_object")
@@ -282,7 +281,7 @@ DefaultSyntax <<= pyparsing.Group(
 )
 
 FieldSetting <<= pyparsing.Group(
-    PrimitiveFieldName + Setting
+    PrimitiveFieldName("field_name") + Setting("setting")
 )
 
 # 11.6
@@ -299,48 +298,47 @@ DefinedSyntaxToken <<= pyparsing.Group(
 
 # 11.7
 Setting <<= pyparsing.Group(
-    values_types.Type("type")
-    | values_types.Value("value")
+    values_types.Value("value")
+    | values_types.Type("type")
     | values_types.ValueSet("value_set")
-    | Object("object")
-    | ObjectSet("object_set")
+    | values_types.Object("object")
+    | values_types.ObjectSet("object_set")
 )
 
 # ITU-T X.681 Section 12
 
 ObjectSetSpec = pyparsing.Forward()
-ObjectSetElements = pyparsing.Forward()
 ParameterizedObjectSet = pyparsing.Forward()
 
 # 12.1
 ObjectSetAssignment = pyparsing.Group(
     lexical_items.typereference("object_set_reference")
-    + DefinedObjectClass
+    + values_types.DefinedObjectClass("object_class")
     + lexical_items.assignment
-    + ObjectSet
+    + values_types.ObjectSet("object_set")
 )
 
 # 12.3
-ObjectSet <<= pyparsing.Group(
+values_types.ObjectSet <<= pyparsing.Group(
     lexical_items.LBRACE
-    + ObjectSetSpec
+    + ObjectSetSpec("spec")
     + lexical_items.RBRACE
 )
 
 ObjectSetSpec <<= pyparsing.Group(
-    (constraints.RootElementSetSpec + lexical_items.COMMA + lexical_items.ellipsis + lexical_items.COMMA + constraints.AdditionalElementSetSpec)
-    | (constraints.RootElementSetSpec + lexical_items.COMMA + lexical_items.ellipsis)
-    | (lexical_items.ellipsis + lexical_items.COMMA + constraints.AdditionalElementSetSpec)
-    | lexical_items.ellipsis
-    | constraints.RootElementSetSpec
+    (constraints.ElementSetSpec("root_element_spec") + lexical_items.COMMA + lexical_items.ellipsis("extensible") + lexical_items.COMMA + constraints.ElementSetSpec)
+    | (constraints.ElementSetSpec("root_element_spec") + lexical_items.COMMA + lexical_items.ellipsis("extensible"))
+    | constraints.ElementSetSpec("root_element_spec")
+    | (lexical_items.ellipsis("extensible") + lexical_items.COMMA + constraints.ElementSetSpec)
+    | lexical_items.ellipsis("extensible")
 )
 
 # 12.10
-ObjectSetElements <<= pyparsing.Group(
-    Object
-    | DefinedObjectSet
+values_types.ObjectSetElements <<= pyparsing.Group(
+    values_types.Object("object")
+    | ParameterizedObjectSet("parameterised_object_set")
+    | values_types.DefinedObjectSet("defined_object_set")
     # | ObjectSetFromObjects
-    | ParameterizedObjectSet
 )
 
 # ITU-T X.681 Section 14
@@ -350,24 +348,14 @@ FixedTypeFieldVal = pyparsing.Forward()
 
 # 14.1
 ObjectClassFieldType = pyparsing.Group(
-    DefinedObjectClass
+    values_types.DefinedObjectClass("object_class")
     + lexical_items.DOT
-    + FieldName
+    + FieldName("field_name")
 )
 
 # 14.6
 ObjectClassFieldValue = pyparsing.Group(
-    FixedTypeFieldVal
-    | OpenTypeFieldVal
-)
-
-OpenTypeFieldVal <<= pyparsing.Group(
     values_types.Type + lexical_items.COLON + values_types.Value
-)
-
-FixedTypeFieldVal <<= pyparsing.Group(
-    values_types.BuiltinValue |
-    values_types.ReferencedValue
 )
 
 # ITU-T X.681 Section 15
@@ -376,21 +364,21 @@ ReferencedObjects = pyparsing.Forward()
 
 # 15.1
 InformationFromObject = pyparsing.Group(
-    ReferencedObjects
+    ReferencedObjects("referenced_objects")
     + lexical_items.DOT
-    + FieldName
+    + FieldName("field_name")
 )
 
 ReferencedObjects <<= pyparsing.Group(
-    DefinedObject
-    | ParameterizedObject
-    | DefinedObjectSet
-    | ParameterizedObjectSet
+    values_types.DefinedObject("defined_object")
+    | ParameterizedObject("parameterized_object")
+    | values_types.DefinedObjectSet("defined_object_set")
+    | ParameterizedObjectSet("parameterized_object_set")
 )
 
 # ITU-T X.681 Annex C
 
 # C.2
 InstanceOfType = pyparsing.Group(
-    pyparsing.Keyword("INSTANCE OF") + DefinedObjectClass
+    pyparsing.Keyword("INSTANCE OF") + values_types.DefinedObjectClass
 )

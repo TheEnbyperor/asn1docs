@@ -18,7 +18,7 @@
     </nav>
 {% endmacro %}
 
-{% macro value(val, module, context) %}
+{% macro value(val, module, context, type) %}
     {% if val.VALUE_TYPE == "VALUE_REFERENCE" %}
         {% if val.is_parameter %}
             <span class="tag value-reference parameter">
@@ -26,11 +26,49 @@
                 {{ val.value_reference }}
             </span>
         {% else %}
-            {% if context.is_external_reference(val, module) %}
+            {% if type %}
+                {% with field_type = context.resolve_type_reference(type) %}
+                    {% if field_type.type_definition.is_item_of(val) %}
+                        {% if type.TYPE_NAME == "TYPE_REFERENCE" %}
+                            {% if context.is_external_reference(type, module) %}
+                                <a href="{{ context.module_relative_link(type, module) }}#symbol-{{ type.type_reference }}"
+                                   class="tag value-reference external-reference">
+                                    {{ val.value_reference }}
+                                </a>
+                            {% else %}
+                                <a href="#symbol-{{ type.type_reference }}" class="tag value-reference">
+                                    {{ val.value_reference }}
+                                </a>
+                            {% endif %}
+                        {% else %}
+                            <span class="tag value-reference">
+                                {{ val.value_reference }}
+                            </span>
+                        {% endif %}
+                    {% else %}
+                        {% if context.is_external_reference(val, module) %}
+                            <a href="{{ context.module_relative_link(val, module) }}#symbol-{{ val.value_reference }}"
+                               class="tag value-reference external-reference">
+                                {{ val.value_reference }}
+                            </a>
+                        {% else %}
+                            <a href="#symbol-{{ val.value_reference }}" class="tag value-reference">
+                                {{ val.value_reference }}
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                {% endwith %}
             {% else %}
-                <a href="#symbol-{{ val.value_reference }}" class="tag value-reference">
-                    {{ val.value_reference }}
-                </a>
+                {% if context.is_external_reference(val, module) %}
+                    <a href="{{ context.module_relative_link(val, module) }}#symbol-{{ val.value_reference }}"
+                       class="tag value-reference external-reference">
+                        {{ val.value_reference }}
+                    </a>
+                {% else %}
+                    <a href="#symbol-{{ val.value_reference }}" class="tag value-reference">
+                        {{ val.value_reference }}
+                    </a>
+                {% endif %}
             {% endif %}
         {% endif %}
     {% elif val.VALUE_TYPE == "INTEGER" %}

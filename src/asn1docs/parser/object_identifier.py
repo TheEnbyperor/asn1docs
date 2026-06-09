@@ -36,13 +36,16 @@ ObjIdComponentsList <<= pyparsing.Group(pyparsing.OneOrMore(ObjIdComponents))
 
 ObjIdComponents <<= pyparsing.Group(
     NameAndNumberForm
-    | NumberForm
-    | NameForm
+    ^ NumberForm
+    ^ NameForm
 )
 
 NameForm <<= lexical_items.identifier("name")
 
-NumberForm <<= (lexical_items.number("number") | values_types.DefinedValue("number_defined_value"))
+NumberForm <<= (
+        lexical_items.number("number")
+        | values_types.DefinedValue("number_defined_value")
+)
 
 NameAndNumberForm <<= (
         lexical_items.identifier("name")

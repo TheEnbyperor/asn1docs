@@ -1,9 +1,10 @@
 {% import "value.html" as value %}
+{% import "type.html" as type %}
 
-{% macro constraint(con, module, context) %}
+{% macro constraint(con, module, context, inner_type) %}
     {% if con.CONSTRAINT_TYPE == "SIZE_CONSTRAINT" %}
         <div class="constraint card">
-            <h4>Size constraint</h4>
+            <h4>Size</h4>
             {% if con.length_range.CONSTRAINT_TYPE == "VALUE_RANGE" %}
                 {% if con.length_range.min_inclusive %}
                     <p>
@@ -37,7 +38,7 @@
         </div>
     {% elif con.CONSTRAINT_TYPE == "VALUE_RANGE" %}
         <div class="constraint card">
-            <h4>Range constraint</h4>
+            <h4>Range</h4>
             {% if con.min_inclusive %}
                 <p>
                     The value must be greater than or equal to:
@@ -63,7 +64,7 @@
         </div>
     {% elif con.CONSTRAINT_TYPE == "SINGLE_VALUE" %}
         <div class="constraint card">
-            <h4>Single value constraint</h4>
+            <h4>Single value</h4>
             <p>
                 The value must be exactly:
                 {{ value.value(con.value, module, context) }}
@@ -71,27 +72,128 @@
         </div>
     {% elif con.CONSTRAINT_TYPE == "PERMITTED_ALPHABET" %}
         <div class="constraint card">
-            <h4>Permitted alphabet constraint</h4>
+            <h4>Permitted alphabet</h4>
             <p>The characters in the string value must satisfy the following constraint:</p>
             {{ constraint(con.alphabet, module, context) }}
         </div>
+    {% elif con.CONSTRAINT_TYPE == "CONTENTS" %}
+        <div class="constraint card">
+            <h4>Contents</h4>
+            {% if con.containing_type is not none %}
+                <p>The value must be an encoding of the following type:</p>
+                {{ type.type(con.containing_type, module, context) }}
+            {% endif %}
+            {% if con.encoded_by is not none %}
+                <p>The value must be encoded with the following transfer syntax:</p>
+                {{ value.value(con.encoded_by, module, context) }}
+            {% endif %}
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "MULTIPLE_INNER_TYPE" %}
+        <div class="constraint card">
+            <h4>Fields</h4>
+            {% if con.partial %}
+                <p>The type must satisfy the following field constraints, other fields are unconstrained:</p>
+            {% else %}
+                <p>The type must satisfy exactly the following field constraints, no other fields are permitted:</p>
+            {% endif %}
+            <table>
+                <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Presence</th>
+                    <th>Value</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for n, c in con.components.items() %}
+                    <tr>
+                        <th>{{ n }}</th>
+                        <td>
+                            {% if c.presence_constraint is not none %}
+                                {% if c.presence_constraint == c.presence_constraint.Present %}
+                                    Must be present
+                                {% elif c.presence_constraint == c.presence_constraint.Absent %}
+                                    Must be absent
+                                {% elif c.presence_constraint == c.presence_constraint.Optional %}
+                                    Optional
+                                {% endif %}
+                            {% else %}
+                                <i>No stipulation</i>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if c.value_constraint is not none %}
+                                {{ constraint(c.value_constraint, module, context) }}
+                            {% else %}
+                                <i>No stipulation</i>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% elif con.CONSTRAINT_TYPE == "INTERSECTION" %}
         <div class="constraint card">
-        <h4>Intersection</h4>
-        <p>Both of the following must be true:</p>
-        {{ constraint(con.left, module, context) }}
-        <p><b>AND</b></p>
-        {{ constraint(con.right, module, context) }}
+            <h4>Intersection</h4>
+            <p>All the following must be true:</p>
+            {% for sub_con in con.constraints %}
+                {{ constraint(sub_con, module, context) }}
+                {% if not loop.last %}
+                    <p><b>AND</b></p>
+                {% endif %}
+            {% endfor %}
         </div>
     {% elif con.CONSTRAINT_TYPE == "UNION" %}
         <div class="constraint card">
-        <h4>Union</h4>
-        <p>Either of the following can be true:</p>
-        {{ constraint(con.left, module, context) }}
-        <p><b>OR</b></p>
-        {{ constraint(con.right, module, context) }}
+            <h4>Union</h4>
+            <p>Any of the following can be true:</p>
+            {% for sub_con in con.constraints %}
+                {{ constraint(sub_con, module, context) }}
+                {% if not loop.last %}
+                    <p><b>OR</b></p>
+                {% endif %}
+            {% endfor %}
         </div>
-    {% else %}
-        {{ con }}
+    {% elif con.CONSTRAINT_TYPE == "INVERSE" %}
+        <div class="constraint card">
+            <h4>Inverse</h4>
+            <p>Any value, except any satisfying the following:</p>
+            {{ constraint(con.constraint, module, context) }}
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "TABLE" %}
+        <div class="constraint card">
+            <h4>Table</h4>
+            <p>
+                The value must come from the <span class="field-reference">{{ inner_type.field|join(".") }}</span> column of the object set:
+                {% if con.object_set.is_parameter %}
+                    <span class="tag type-reference parameter">
+                        <span class="label">Parameter</span>
+                        {{ con.object_set.value_reference }}
+                    </span>
+                {% elif context.is_external_reference(con.object_set, module) %}
+                    <a href="{{ context.module_relative_link(con.object_set, module) }}#symbol-{{ con.object_set.value_reference }}"
+                       class="tag value-reference external-reference">
+                        {{ con.object_set.value_reference }}
+                    </a>
+                {% else %}
+                    <a href="#symbol-{{ con.object_set.value_reference }}" class="tag value-reference">
+                        {{ con.object_set.value_reference }}
+                    </a>
+                {% endif %}
+                {% if con.fields %}
+                    <br/>
+                    The row is selected by the value of the fields:
+                    {% for field in con.fields %}
+                        <span class="field-reference">{{ field.fields|join(".") }}</span>{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                {% endif %}
+            </p>
+        </div>
+    {% elif con.CONSTRAINT_TYPE == "USER_DEFINED" %}
+        <div class="constraint card">
+            <h4>User-defined</h4>
+            <p>This constraint is declared in a comment in the source code.</p>
+        </div>
     {% endif %}
 {% endmacro %}

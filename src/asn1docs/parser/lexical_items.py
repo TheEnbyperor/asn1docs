@@ -279,10 +279,10 @@ single_char_lexicals = pyparsing.MatchFirst(
 objectclassreference = (~reserved_word + hyphenated_word(UPPER, UPPER + DIGITS))
 
 # 7.4 type field reference
-typefieldreference = (pyparsing.Literal("&") + typereference)
+typefieldreference = pyparsing.Combine(pyparsing.Literal("&") + typereference)
 
 # 7.5 value field reference
-valuefieldreference = (pyparsing.Literal("&") + valuereference)
+valuefieldreference = pyparsing.Combine(pyparsing.Literal("&") + valuereference)
 
 # 7.9 word
 word = (~word_reserved_word + hyphenated_word(UPPER, UPPER))

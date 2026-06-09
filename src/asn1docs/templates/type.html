@@ -1,6 +1,5 @@
 {% import "javadoc.html" as javadoc %}
 {% import "value.html" as value %}
-{% import "constraint.html" as constraint %}
 
 {% macro sequence(def, module, context) %}
     <span class="tag type-tag">SEQUENCE</span>
@@ -24,7 +23,7 @@
                 {% if v.default %}
                     <p>
                         This field, when unset, defaults to the following value:
-                        {{ value.value(v.default, module, context) }}
+                        {{ value.value(v.default, module, context, v.type_definition) }}
                     </p>
                 {% endif %}
             </dd>
@@ -71,6 +70,8 @@
 {% macro character_string(def) %}
     {% if def.string_type == def.string_type.VisibleString %}
         <span class="tag type-tag">VisibleString</span>
+    {% elif def.string_type == def.string_type.UTF8String %}
+        <span class="tag type-tag">UTF8String</span>
     {% endif %}
 {% endmacro %}
 
@@ -83,7 +84,8 @@
             </span>
         {% else %}
             {% if context.is_external_reference(def, module) %}
-                <a href="{{ context.module_relative_link(def, module) }}#symbol-{{ def.type_reference }}" class="tag type-reference external-reference">
+                <a href="{{ context.module_relative_link(def, module) }}#symbol-{{ def.type_reference }}"
+                   class="tag type-reference external-reference">
                     {{ def.type_reference }}
                 </a>
             {% else %}
@@ -94,7 +96,7 @@
         {% endif %}
         {% if def.parameters %}
             <p>This type is concretely parameterised with the following:</p>
-            {% with ref_type = context.resolve_type_reference(def, module) %}
+            {% with ref_type = context.resolve_type_reference(def) %}
                 {% with params = ref_type.apply_parameters(def.parameters) %}
                     <dl class="fields parameters">
                         {% for k, v in params.items() %}
@@ -115,6 +117,8 @@
         {% endif %}
     {% elif def.TYPE_NAME == "NULL" %}
         <span class="tag type-tag">NULL</span>
+    {% elif def.TYPE_NAME == "ANY" %}
+        <span class="tag type-tag">ANY</span>
     {% elif def.TYPE_NAME == "BOOLEAN" %}
         <span class="tag type-tag">BOOLEAN</span>
     {% elif def.TYPE_NAME == "INTEGER" %}
@@ -137,9 +141,19 @@
         <span class="tag type-tag">SEQUENCE OF</span>
         {{ type(def.inner_type_definition, module, context) }}
     {% elif def.TYPE_NAME == "CONSTRAINED_TYPE" %}
-        {{ type(def.inner_type_definition, module, context) }}
-        <p>This type is constrained in the following way:</p>
-        {{ constraint.constraint(def.constraints, module, context) }}
+        {% import "constraint.html" as constraint %}
+        {% if def.inner_type_definition.TYPE_NAME == "SEQUENCE_OF" %}
+            <span class="tag type-tag">SEQUENCE OF</span>
+            <p>This type is constrained in the following way:</p>
+            {{ constraint.constraint(def.constraints, module, context) }}
+            {{ type(def.inner_type_definition.inner_type_definition, module, context) }}
+        {% else %}
+            {{ type(def.inner_type_definition, module, context) }}
+            <p>This type is constrained in the following way:</p>
+            {{ constraint.constraint(def.constraints, module, context, def.inner_type_definition) }}
+        {% endif %}
+    {% elif def.TYPE_NAME == "OBJECT_CLASS_FIELD" %}
+        {{ type(def.resolve_type(context), module, context) }}
     {% endif %}
 {% endmacro %}
 
@@ -148,6 +162,8 @@
         <span class="tag type-tag">REF</span>
     {% elif def.TYPE_NAME == "NULL" %}
         <span class="tag type-tag">NULL</span>
+    {% elif def.TYPE_NAME == "ANY" %}
+        <span class="tag type-tag">ANY</span>
     {% elif def.TYPE_NAME == "BOOLEAN" %}
         <span class="tag type-tag">BOOLEAN</span>
     {% elif def.TYPE_NAME == "INTEGER" %}

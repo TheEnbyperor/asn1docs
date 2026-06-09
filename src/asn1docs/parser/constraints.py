@@ -58,15 +58,13 @@ Constraint <<= pyparsing.Group(
 )
 
 ConstraintSpec <<= pyparsing.Group(
-    ElementSetSpecs("subtype_constraint")
-    # ^ GeneralConstraint("general_constraint")
+    GeneralConstraint("general_constraint")
+    | ElementSetSpecs("subtype_constraint")
 )
 
 # ITU-T X.680 Section 50
 
-RootElementSetSpec = pyparsing.Forward()
 ElementSetSpec = pyparsing.Forward()
-AdditionalElementSetSpec = pyparsing.Forward()
 Unions = pyparsing.Forward()
 Intersections = pyparsing.Forward()
 IntersectionElements = pyparsing.Forward()
@@ -75,7 +73,6 @@ UnionMark = pyparsing.Forward()
 IntersectionMark = pyparsing.Forward()
 Elements = pyparsing.Forward()
 SubtypeElements = pyparsing.Forward()
-ObjectSetElements = pyparsing.Forward()
 
 # 50.1
 ElementSetSpecs <<= pyparsing.Group(
@@ -116,7 +113,7 @@ IntersectionMark <<= "^" | pyparsing.Keyword("INTERSECTION")
 Elements <<= pyparsing.Group(
     (lexical_items.LPAR + ElementSetSpec("element_set_spec") + lexical_items.RPAR)
     | SubtypeElements("subtype_elements")
-    # ^ ObjectSetElements
+    | values_types.ObjectSetElements("object_set_elements")
 )
 
 # ITU-T X.680 Section 51
@@ -237,4 +234,85 @@ PatternConstraint <<= pyparsing.Group(
 # 51.10.1
 PropertySettings <<= pyparsing.Group(
     pyparsing.Keyword("SETTINGS") + lexical_items.simplestring
+)
+
+# ITU-T X.682 Section 8
+
+ContentsConstraint = pyparsing.Forward()
+UserDefinedConstraint = pyparsing.Forward()
+TableConstraint = pyparsing.Forward()
+
+# 8.1
+GeneralConstraint <<= pyparsing.Group(
+    TableConstraint("table_constraint")
+    | UserDefinedConstraint("user_defined_constraint")
+    | ContentsConstraint("contents_constraint")
+)
+
+# ITU-T X.682 Section 9
+
+UserDefinedConstraintParameter = pyparsing.Forward()
+
+# 9.1
+UserDefinedConstraint <<= pyparsing.Group(
+    pyparsing.Keyword("CONSTRAINED BY")
+    + lexical_items.LBRACE
+    + pyparsing.Optional(pyparsing.delimited_list(
+        UserDefinedConstraintParameter,
+        delim=lexical_items.COMMA,
+        min=1
+    ))
+    + lexical_items.RBRACE
+)
+
+# 9.3
+UserDefinedConstraintParameter <<= pyparsing.Group(
+    (values_types.Governor + lexical_items.COLON + values_types.Object)
+    | (values_types.Governor + lexical_items.COLON + values_types.Value)
+    | values_types.DefinedObjectSet
+    | values_types.DefinedObjectClass
+)
+
+# ITU-T X.682 Section 10
+
+ComponentRelationConstraint = pyparsing.Forward()
+AtNotation = pyparsing.Forward()
+
+# 10.3
+TableConstraint <<= pyparsing.Group(
+    ComponentRelationConstraint("component_relation_constraint")
+    | values_types.ObjectSet("simple_table_constraint")
+)
+
+# 10.7
+ComponentRelationConstraint <<= pyparsing.Group(
+    lexical_items.LBRACE
+    + values_types.DefinedObjectSet("defined_object_set")
+    + lexical_items.RBRACE
+    + lexical_items.LBRACE
+    + pyparsing.delimited_list(
+        AtNotation,
+        delim=lexical_items.COMMA,
+        min=1
+    )("at_notation")
+    + lexical_items.RBRACE
+)
+
+AtNotation <<= pyparsing.Group(
+    lexical_items.AT
+    + pyparsing.ZeroOrMore(lexical_items.DOT)("dots")
+    + pyparsing.delimited_list(
+        lexical_items.identifier,
+        delim=lexical_items.DOT,
+        min=1
+    )("identifiers")
+)
+
+# ITU-T X.682 Section 11
+
+# 11.1
+ContentsConstraint <<= pyparsing.Group(
+    (pyparsing.Keyword("CONTAINING") + values_types.Type("type") + pyparsing.Keyword("ENCODED BY") + values_types.Value("encoded_by"))
+    | (pyparsing.Keyword("CONTAINING") + values_types.Type("type"))
+    | (pyparsing.Keyword("ENCODED BY") + values_types.Value("encoded_by"))
 )

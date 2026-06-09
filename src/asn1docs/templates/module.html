@@ -2,6 +2,7 @@
 {% import "javadoc.html" as javadoc %}
 {% import "type.html" as type %}
 {% import "value.html" as value %}
+{% import "object.html" as object %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -35,6 +36,12 @@
                             {{ type.type_tag(assignment.type_definition) }}<br/>
                         {% elif assignment.ASSIGNMENT_TYPE == "VALUE" %}
                             {{ type.type_tag(assignment.value_type) }}<br/>
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT_CLASS" %}
+                            <span class="tag type-tag">OBJECT CLASS</span>
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT_SET" %}
+                            <span class="tag type-tag">OBJECT SET</span>
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT" %}
+                            <span class="tag type-tag">OBJECT</span>
                         {% endif %}
                         {% if assignment.parameters %}
                             <span class="tag">Parameterised</span>
@@ -133,6 +140,12 @@
                         {% elif assignment.ASSIGNMENT_TYPE == "VALUE" %}
                             {{ type.type(assignment.value_type, module, context) }}
                             {{ value.value(assignment.value, module, context) }}
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT_CLASS" %}
+                            {{ object.object_class(assignment.object, module, context) }}
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT_SET" %}
+                            {{ object.object_set(assignment, module, context) }}
+                        {% elif assignment.ASSIGNMENT_TYPE == "OBJECT" %}
+                            {{ object.object(assignment, module, context) }}
                         {% endif %}
                     </article>
                 {% endfor %}

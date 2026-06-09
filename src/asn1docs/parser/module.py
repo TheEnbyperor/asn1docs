@@ -183,12 +183,12 @@ DocumentedAssignment <<= pyparsing.Group(
 )
 
 Assignment <<= pyparsing.Group(
-    object_class.ObjectClassAssignment("object_class_assignment")
+    parametisation.ParameterizedAssignment("parameterised_assignment")
+    | object_class.ObjectClassAssignment("object_class_assignment")
     | object_class.ObjectAssignment("object_assignment")
-    | object_class.ObjectSetAssignment("object_set_assignment")
-    | parametisation.ParameterizedAssignment("parameterised_assignment")
     | values_types.TypeAssignment("type_assignment")
     | values_types.ValueAssignment("value_assignment")
+    | object_class.ObjectSetAssignment("object_set_assignment")
     | values_types.ValueSetTypeAssignment("value_set_assignment")
 )
 

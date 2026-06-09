@@ -14,16 +14,15 @@ ParameterizedObjectSetAssignment = pyparsing.Forward()
 ParameterList = pyparsing.Forward()
 Parameter = pyparsing.Forward()
 ParamGovernor = pyparsing.Forward()
-Governor = pyparsing.Forward()
 
 # 8.1
 ParameterizedAssignment = pyparsing.Group(
     ParameterizedTypeAssignment("type_assignment")
-    | ParameterizedValueAssignment
-    | ParameterizedValueSetTypeAssignment
-    | ParameterizedObjectClassAssignment
-    | ParameterizedObjectAssignment
-    | ParameterizedObjectSetAssignment
+    | ParameterizedValueAssignment("value_assignment")
+    | ParameterizedValueSetTypeAssignment("value_set_assignment")
+    | ParameterizedObjectClassAssignment("object_class_assignment")
+    | ParameterizedObjectAssignment("object_assignment")
+    | ParameterizedObjectSetAssignment("object_set_assignment")
 )
 
 # 8.2
@@ -35,42 +34,42 @@ ParameterizedTypeAssignment <<= pyparsing.Group(
 )
 
 ParameterizedValueAssignment <<= pyparsing.Group(
-    lexical_items.valuereference
-    + ParameterList
-    + values_types.Type
+    lexical_items.valuereference("value_reference")
+    + ParameterList("parameters")
+    + values_types.Type("type")
     + lexical_items.assignment
-    + values_types.Value
+    + values_types.Value("value")
 )
 
 ParameterizedValueSetTypeAssignment <<= pyparsing.Group(
-    lexical_items.valuereference
-    + ParameterList
-    + values_types.Type
+    lexical_items.valuereference("value_set_reference")
+    + ParameterList("parameters")
+    + values_types.Type("type")
     + lexical_items.assignment
-    + values_types.ValueSet
+    + values_types.ValueSet("value")
 )
 
 ParameterizedObjectClassAssignment <<= pyparsing.Group(
-    lexical_items.objectclassreference
-    + ParameterList
+    lexical_items.objectclassreference("object_class_reference")
+    + ParameterList("parameters")
     + lexical_items.assignment
-    + object_class.ObjectClass
+    + values_types.ObjectClass("object_class")
 )
 
 ParameterizedObjectAssignment <<= pyparsing.Group(
-    lexical_items.valuereference
-    + ParameterList
-    + object_class.DefinedObjectClass
+    lexical_items.valuereference("object_reference")
+    + ParameterList("parameters")
+    + values_types.DefinedObjectClass("object_class")
     + lexical_items.assignment
-    + object_class.Object
+    + values_types.Object("object")
 )
 
 ParameterizedObjectSetAssignment <<= pyparsing.Group(
-    lexical_items.typereference
-    + ParameterList
-    + object_class.DefinedObjectClass
+    lexical_items.typereference("object_set_reference")
+    + ParameterList("parameters")
+    + values_types.DefinedObjectClass("object_class")
     + lexical_items.assignment
-    + object_class.ObjectSet
+    + values_types.ObjectSet("object_set")
 )
 
 # 8.3
@@ -88,10 +87,10 @@ Parameter <<= pyparsing.Group(
     (ParamGovernor("governor") + lexical_items.COLON + values_types.Reference("dummy_reference"))
     | values_types.Reference("dummy_reference")
 )
-ParamGovernor <<= pyparsing.Group(Governor("governor") | values_types.Reference("dummy_reference"))
-Governor <<= pyparsing.Group(
+ParamGovernor <<= pyparsing.Group(values_types.Governor("governor") | values_types.Reference("dummy_reference"))
+values_types.Governor <<= pyparsing.Group(
     values_types.Type("type")
-    | object_class.DefinedObjectClass
+    | values_types.DefinedObjectClass
 )
 
 # ITU-T X.683 Section 9
@@ -122,17 +121,17 @@ SimpleDefinedValue <<= pyparsing.Group(
 )
 
 object_class.ParameterizedObjectClass <<= pyparsing.Group(
-    object_class.DefinedObjectClass
+    values_types.DefinedObjectClass
     + ActualParameterList
 )
 
 object_class.ParameterizedObjectSet <<= pyparsing.Group(
-    object_class.DefinedObjectSet
+    values_types.DefinedObjectSet
     + ActualParameterList
 )
 
 object_class.ParameterizedObject <<= pyparsing.Group(
-    object_class.DefinedObject
+    values_types.DefinedObject
     + ActualParameterList
 )
 
@@ -154,7 +153,7 @@ ActualParameter <<= pyparsing.Group(
     values_types.Type("type")
     | values_types.Value("value")
     | values_types.ValueSet("value_set")
-    | object_class.DefinedObjectClass
-    | object_class.Object
-    | object_class.ObjectSet
+    | values_types.DefinedObjectClass("object_class")
+    | values_types.Object("object")
+    | values_types.ObjectSet("object_set")
 )

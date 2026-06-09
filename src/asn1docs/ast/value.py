@@ -1,14 +1,23 @@
+import abc
 import typing
 import dataclasses
 import pyparsing
 from . import util, module
 
-Value = typing.Union[
-    "Reference", "Integer", "CharacterString", "Enumeration", "Boolean", "Choice", "Sequence", "ObjectIdentifier"]
+class Value(metaclass=abc.ABCMeta):
+    VALUE_TYPE: str
+
+    @property
+    def is_type(self):
+        return False
+
+    @property
+    def is_value(self):
+        return True
 
 
 @dataclasses.dataclass
-class Integer:
+class Integer(Value):
     VALUE_TYPE = "INTEGER"
 
     value: int
@@ -24,28 +33,28 @@ class Integer:
 
 
 @dataclasses.dataclass
-class CharacterString:
+class CharacterString(Value):
     VALUE_TYPE = "CHARACTER_STRING"
 
     value: str
 
 
 @dataclasses.dataclass
-class Enumeration:
+class Enumeration(Value):
     VALUE_TYPE = "ENUMERATION"
 
     value: str
 
 
 @dataclasses.dataclass
-class Boolean:
+class Boolean(Value):
     VALUE_TYPE = "BOOLEAN"
 
     value: bool
 
 
 @dataclasses.dataclass
-class Choice:
+class Choice(Value):
     VALUE_TYPE = "CHOICE"
 
     variant: str
@@ -53,7 +62,7 @@ class Choice:
 
 
 @dataclasses.dataclass
-class Sequence:
+class Sequence(Value):
     VALUE_TYPE = "SEQUENCE"
 
     fields: typing.Dict[str, Value]
@@ -66,14 +75,17 @@ class ObjectIdentifierComponent:
 
 
 @dataclasses.dataclass
-class ObjectIdentifier:
+class ObjectIdentifier(Value):
     VALUE_TYPE = "OBJECT_IDENTIFIER"
 
     origin: typing.Optional["Reference"]
     components: typing.List[ObjectIdentifierComponent]
 
     @classmethod
-    def build(cls, value_def: pyparsing.ParseResults) -> ObjectIdentifier:
+    def build(
+            cls, value_def: pyparsing.ParseResults, m: module.Module,
+            parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
+    ) -> ObjectIdentifier:
         oid = []
         for component in value_def.components:
             if component.name and component.number:
@@ -92,7 +104,7 @@ class ObjectIdentifier:
                     number=int(component.number, 10)
                 ))
         return cls(
-            origin=Reference.build(value_def.value) if value_def.value else None,
+            origin=Reference.build(value_def.value, m, parameters) if value_def.value else None,
             components=oid
         )
 
@@ -102,9 +114,10 @@ class ObjectIdentifier:
 
 
 @dataclasses.dataclass
-class Reference:
+class Reference(Value):
     VALUE_TYPE = "VALUE_REFERENCE"
 
+    module: module.Module
     value_reference: str
     module_reference: typing.Optional[str] = None
     is_parameter: bool = False
@@ -114,36 +127,41 @@ class Reference:
     def build(
             cls,
             value_def: pyparsing.ParseResults,
+            m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
-    ) -> Reference:
+    ) -> "Reference":
         if value_def.value_reference:
             ref = value_def.value_reference[0]
             return Reference(
+                module=m,
                 value_reference=ref,
                 is_parameter=bool(parameters and (ref in parameters) and parameters[ref].parameter_type == module.ParameterType.Value),
             )
         elif value_def.external_value_reference:
             return Reference(
-                value_def.external_value_reference.value_reference[0],
-                value_def.external_value_reference.module_reference[0]
+                module=m,
+                value_reference=value_def.external_value_reference.value_reference[0],
+                module_reference=value_def.external_value_reference.module_reference[0]
             )
         elif value_def.parameterised_value:
             if value_def.parameterized_value.simple_defined_value.value_reference:
                 ref = value_def.parameterized_value.simple_defined_value \
                     .value_reference[0]
                 return Reference(
+                    module=m,
                     value_reference=ref,
                     is_parameter=bool(parameters and (ref in parameters) and parameters[ref].parameter_type == module.ParameterType.Value),
-                    parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
+                    parameters=[util.ReferenceParameter.build(parameter, m, parameters) for parameter in
                                 value_def.parameterized_value.parameter_list.parameters]
                 )
             elif value_def.parameterized_value.simple_defined_value.external_value_reference:
                 return Reference(
-                    value_def.parameterized_value.simple_defined_value \
+                    module=m,
+                    value_reference=value_def.parameterized_value.simple_defined_value \
                         .external_value_reference.value_reference[0],
-                    value_def.parameterized_value.simple_defined_value \
+                    module_reference=value_def.parameterized_value.simple_defined_value \
                         .external_value_reference.module_reference[0],
-                    parameters=[util.ReferenceParameter.build(parameter, parameters) for parameter in
+                    parameters=[util.ReferenceParameter.build(parameter, m, parameters) for parameter in
                                 value_def.parameterized_value.parameter_list.parameters]
                 )
             else:
@@ -151,9 +169,21 @@ class Reference:
         else:
             util.assert_never(value_def)
 
+@dataclasses.dataclass
+class FromObjectReference(Value):
+    VALUE_TYPE = "FROM_OBJECT_REFERENCE"
+
+    @classmethod
+    def build(
+            cls,
+            value_def: pyparsing.ParseResults,
+            parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
+    ) -> "FromObjectReference":
+        raise NotImplementedError()
 
 def build_value(
         value_def: pyparsing.ParseResults,
+        m: module.Module,
         parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Value:
     if value_def.built_in_value:
@@ -172,7 +202,7 @@ def build_value(
         elif value_def.built_in_value.choice_value:
             return Choice(
                 variant=value_def.built_in_value.choice_value.identifier[0],
-                value=build_value(value_def.built_in_value.choice_value.value, parameters),
+                value=build_value(value_def.built_in_value.choice_value.value, m, parameters),
             )
         elif value_def.built_in_value.sequence_value:
             if value_def.built_in_value.sequence_value.component_value_list:
@@ -181,14 +211,21 @@ def build_value(
                     ref = field.name[0]
                     if ref in fields:
                         raise SyntaxError(f"Duplicate field {ref} in sequence value")
-                    fields[ref] = build_value(field.value[0], parameters)
+                    fields[ref] = build_value(field.value[0], m, parameters)
                 return Sequence(fields=fields)
             else:
                 return Sequence(fields={})
         elif value_def.built_in_value.object_identifier_value:
-            return ObjectIdentifier.build(value_def.built_in_value.object_identifier_value)
+            return ObjectIdentifier.build(value_def.built_in_value.object_identifier_value, m, parameters)
         raise NotImplementedError(f"Unhandled value {value_def}")
     elif value_def.referenced_value:
-        return Reference.build(value_def.referenced_value.defined_value)
+        if value_def.referenced_value.defined_value:
+            return Reference.build(value_def.referenced_value.defined_value, m, parameters)
+        elif value_def.referenced_value.information_from_object:
+            return FromObjectReference.build(value_def.reference_value.information_from_object)
+        else:
+            util.assert_never(value_def.referenced_value)
+    elif value_def.object_class_field_value:
+        raise NotImplementedError()
     else:
         util.assert_never(value_def)

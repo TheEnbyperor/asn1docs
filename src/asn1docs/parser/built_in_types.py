@@ -92,7 +92,7 @@ values_types.ReferencedType <<= pyparsing.Group(
     values_types.DefinedType("defined_type")
     | UsefulType("useful_type")
     | constructed_types.SelectionType("selection_type")
-    | object_class.InformationFromObject
+    | object_class.InformationFromObject("information_from_object")
 )
 
 # 17.5
@@ -102,9 +102,9 @@ values_types.NamedType <<= pyparsing.Group(
 
 # 17.7
 values_types.Value <<= pyparsing.Group(
-    values_types.ReferencedValue("referenced_value")
+    object_class.ObjectClassFieldValue("object_class_field_value")
+    ^ values_types.ReferencedValue("referenced_value")
     ^ values_types.BuiltinValue("built_in_value")
-    ^ object_class.ObjectClassFieldValue("object_class_field_value")
 )
 
 # 17.9
@@ -130,7 +130,7 @@ values_types.BuiltinValue <<= pyparsing.Group(
 # 17.11
 values_types.ReferencedValue <<= pyparsing.Group(
     values_types.DefinedValue("defined_value")
-    | object_class.InformationFromObject
+    | object_class.InformationFromObject("information_from_object")
 )
 
 # 17.13
@@ -246,7 +246,6 @@ SpecialRealValue <<= pyparsing.Group(
 
 NamedBitList = pyparsing.Forward()
 NamedBit = pyparsing.Forward()
-IdentifierList = pyparsing.Forward()
 
 # 22.1
 BitStringType <<= pyparsing.Group(
@@ -267,16 +266,14 @@ NamedBit <<= pyparsing.Group(
 
 # 22.9
 BitStringValue <<= pyparsing.Group(
-    lexical_items.bstring
+    (pyparsing.Keyword("CONTAINING") + values_types.Value)
+    | lexical_items.bstring
     | lexical_items.hstring
-    | (lexical_items.LBRACE + IdentifierList + lexical_items.RBRACE)
-    | (lexical_items.LBRACE + lexical_items.RBRACE)
-    | (pyparsing.Keyword("CONTAINING") + values_types.Value)
-)
-
-IdentifierList <<= pyparsing.Group(
-    lexical_items.identifier
-    | (IdentifierList + lexical_items.COMMA + lexical_items.identifier)
+    | (lexical_items.LBRACE + pyparsing.Optional(pyparsing.delimited_list(
+        lexical_items.identifier,
+        delim=lexical_items.COMMA,
+        min=1
+    )) + lexical_items.RBRACE)
 )
 
 # ITU-T X.680 Section 23

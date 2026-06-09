@@ -3,7 +3,7 @@ import typing
 import dataclasses
 import pyparsing
 
-from . import type, util, javadoc, value, highlight
+from . import type, util, javadoc, value, highlight, object
 from .. import parser, oid_tree
 
 class ParameterType(enum.Enum):
@@ -16,39 +16,56 @@ class AssignmentParameter:
     parameter_type: ParameterType
     governor: typing.Optional["type.Type"] = None
 
-
 @dataclasses.dataclass
-class TypeAssignment:
-    ASSIGNMENT_TYPE = "TYPE"
-
-    type_definition: "type.Type"
-    parameters: typing.Dict[str, AssignmentParameter] = dataclasses.field(default_factory=dict)
-    javadoc: typing.Optional["javadoc.JavaDoc"] = None
+class Assignment:
+    parameters: typing.Dict[str, AssignmentParameter]
+    javadoc: typing.Optional["javadoc.JavaDoc"]
 
     def apply_parameters(self, params: typing.List["util.ReferenceParameter"]) -> typing.Dict[str, typing.Optional["util.ReferenceParameter"]]:
+        if len(params) != len(self.parameters):
+            raise SyntaxError(f"Expected {len(self.parameters)} parameters, got {len(params)}")
         return {
-            k: params[i] if i < len(params) else None
+            k: params[i]
             for i, (k, _) in enumerate(self.parameters.items())
         }
 
 
 @dataclasses.dataclass
-class ValueAssignment:
-    ASSIGNMENT_TYPE = "VALUE"
+class TypeAssignment(Assignment):
+    ASSIGNMENT_TYPE = "TYPE"
+    type_definition: "type.Type"
 
+
+@dataclasses.dataclass
+class ValueAssignment(Assignment):
+    ASSIGNMENT_TYPE = "VALUE"
     value_type: "type.Type"
     value: "value.Value"
-    parameters: typing.Dict[str, AssignmentParameter] = dataclasses.field(default_factory=dict)
-    javadoc: typing.Optional["javadoc.JavaDoc"] = None
-
-    def apply_parameters(self, params: typing.List["util.ReferenceParameter"]) -> typing.Dict[str, typing.Optional["util.ReferenceParameter"]]:
-        return {
-            k: params[i] if i < len(params) else None
-            for i, (k, _) in enumerate(self.parameters.items())
-        }
 
 
-def build_assignment_parameters(param_def: pyparsing.ParseResults) -> typing.Dict[str, AssignmentParameter]:
+@dataclasses.dataclass
+class ObjectClassAssignment(Assignment):
+    ASSIGNMENT_TYPE = "OBJECT_CLASS"
+    object: "object.Class"
+
+
+@dataclasses.dataclass
+class ObjectSetAssignment(Assignment):
+    ASSIGNMENT_TYPE = "OBJECT_SET"
+    object_class: "object.ClassReference"
+    object_set: "object.Set"
+
+
+@dataclasses.dataclass
+class ObjectAssignment(Assignment):
+    ASSIGNMENT_TYPE = "OBJECT"
+    object_class: "object.ClassReference"
+    object: "object.Object"
+
+
+def build_assignment_parameters(
+        param_def: pyparsing.ParseResults, m: Module
+) -> typing.Dict[str, AssignmentParameter]:
     out = {}
     for parameter in param_def.parameters:
         if parameter.dummy_reference.type_reference:
@@ -68,7 +85,7 @@ def build_assignment_parameters(param_def: pyparsing.ParseResults) -> typing.Dic
 
         if parameter.governor:
             if parameter.governor.governor and parameter.governor.governor.type:
-                governor = type.build_type(parameter.governor.governor.type[0])
+                governor = type.build_type(parameter.governor.governor.type[0], m)
             else:
                 raise NotImplementedError(f"Unhandled parameter governor {parameter.governor}")
         else:
@@ -153,7 +170,7 @@ class Module:
     def add_import(self, module_import: ModuleImport):
         self.imports.append(module_import)
 
-    def add_assignment(self, symbol: str, assignment: typing.Union[TypeAssignment, ValueAssignment]):
+    def add_assignment(self, symbol: str, assignment: Assignment):
         if symbol in self.assignments:
             raise SyntaxError(f"Duplicate assignment {symbol} in module")
         self.assignments[symbol] = assignment
@@ -170,7 +187,7 @@ def parse_module(source: str, oid_root: "oid_tree.OIDNode") -> Module:
             oid = result.ModuleDefinition.module_identifier.definitive_identification.oid
         else:
             oid = result.ModuleDefinition.module_identifier.definitive_identification.oid_and_iri.oid
-        oid = oid_root.store_oid(value.ObjectIdentifier.build(oid))
+        oid = oid_root.store_oid(value.ObjectIdentifier.build(oid, module))
         module.set_oid(oid)
 
     if result.ModuleDefinition.javadoc:
@@ -205,7 +222,8 @@ def parse_module(source: str, oid_root: "oid_tree.OIDNode") -> Module:
         for import_module in imports.value.symbols_imported.from_modules:
             if import_module.value.from_module.assigned_identifier:
                 oid = oid_root.store_oid(
-                    value.ObjectIdentifier.build(import_module.value.from_module.assigned_identifier))
+                    value.ObjectIdentifier.build(import_module.value.from_module.assigned_identifier, module)
+                )
             else:
                 oid = None
             module.add_import(ModuleImport(
@@ -219,33 +237,58 @@ def parse_module(source: str, oid_root: "oid_tree.OIDNode") -> Module:
         if ta := assignment_def.value[0].assignment.type_assignment:
             symbol = ta.type_reference[0]
             assignment = TypeAssignment(
-                type_definition=type.build_type(ta.type),
+                type_definition=type.build_type(ta.type, module),
                 javadoc=doc,
+                parameters={}
             )
         elif va := assignment_def.value[0].assignment.value_assignment:
             symbol = va.value_reference[0]
             assignment = ValueAssignment(
-                value_type=type.build_type(va.type),
-                value=value.build_value(va.value),
+                value_type=type.build_type(va.type, module),
+                value=value.build_value(va.value, module),
                 javadoc=doc,
+                parameters={}
             )
         elif pa := assignment_def.value[0].assignment.parameterised_assignment:
             if ta := pa.type_assignment:
                 symbol = ta.type_reference[0]
-                parameters = build_assignment_parameters(ta.parameters)
+                parameters = build_assignment_parameters(ta.parameters, module)
                 assignment = TypeAssignment(
-                    type_definition=type.build_type(ta.type[0], parameters),
+                    type_definition=type.build_type(ta.type[0], module, parameters),
                     javadoc=doc,
                     parameters=parameters,
                 )
+            # elif oca := pa.object_class_assignment:
+            #     symbol = oca.object_class_reference[0]
+            #     assignment = None
+            # elif oca := pa.object_assignment:
+            #     symbol = oca.object_reference[0]
+            #     assignment = None
             else:
                 raise NotImplementedError(f"Unhandled parameterised assignment {pa}")
         elif oca := assignment_def.value[0].assignment.object_class_assignment:
             symbol = oca.object_class_reference[0]
-            assignment = None
+            assignment = ObjectClassAssignment(
+                object=object.build_class(oca.object_class, module),
+                javadoc=doc,
+                parameters={}
+            )
+        elif oca := assignment_def.value[0].assignment.object_set_assignment:
+            symbol = oca.object_set_reference[0]
+            assignment = ObjectSetAssignment(
+                object_class=object.ClassReference.build(oca.object_class[0], module),
+                object_set=object.Set.build(oca.object_set, None, module),
+                javadoc=doc,
+                parameters={}
+            )
         elif oca := assignment_def.value[0].assignment.object_assignment:
             symbol = oca.object_reference[0]
-            assignment = None
+            assignment = ObjectAssignment(
+                object_class=object.ClassReference.build(oca.object_class[0], module),
+                object=object.build_object(oca.object, module),
+                javadoc=doc,
+                parameters={}
+            )
         else:
             raise NotImplementedError(f"Unhandled assignment {assignment_def.value[0].assignment}")
         module.add_assignment(symbol, assignment)
