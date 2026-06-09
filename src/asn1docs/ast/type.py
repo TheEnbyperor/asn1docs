@@ -377,6 +377,8 @@ def build_type(
                     return CharacterString(string_type=CharacterStringType.VisibleString)
                 elif st == "UTF8String":
                     return CharacterString(string_type=CharacterStringType.UTF8String)
+                elif st == "IA5String":
+                    return CharacterString(string_type=CharacterStringType.IA5String)
                 else:
                     raise NotImplementedError(f"Unhandled character_string_type {st}")
             elif type_def.built_in_type.character_string_type.unrestricted_character_string_type:

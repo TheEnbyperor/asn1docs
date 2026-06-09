@@ -20,7 +20,7 @@ ExternalTypeReference = pyparsing.Group(
 )
 
 ExternalValueReference = pyparsing.Group(
-    lexical_items.modulereference + lexical_items.DOT + lexical_items.valuereference
+    lexical_items.modulereference("module_reference") + lexical_items.DOT + lexical_items.valuereference("value_reference")
 )
 
 DefinedType = pyparsing.Group(

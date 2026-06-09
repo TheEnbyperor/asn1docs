@@ -50,9 +50,15 @@ class Context:
                 else:
                     raise NotImplementedError("External reference to a non-OID import not implemented")
 
-            module_import = next(filter(lambda i: symbol in i.symbols, ref.module.imports), None)
+            if ref.module_reference:
+                module_import = next(filter(lambda i: i.module_reference == ref.module_reference, ref.module.imports), None)
+            else:
+                module_import = next(filter(lambda i: symbol in i.symbols, ref.module.imports), None)
         else:
-            module_import = next(filter(lambda i: symbol in i.symbols, current_module.imports), None)
+            if ref.module_reference:
+                module_import = next(filter(lambda i: i.module_reference == ref.module_reference, current_module.imports), None)
+            else:
+                module_import = next(filter(lambda i: symbol in i.symbols, current_module.imports), None)
 
         if not module_import:
             raise ValueError(f"External reference {symbol} is not imported")
@@ -67,15 +73,17 @@ class Context:
 
     def resolve_reference(self, symbol: str, module_reference: typing.Optional[str], reference_module: module.Module) -> typing.Union[
         module.TypeAssignment, module.ValueAssignment]:
-        if module_reference:
-            raise NotImplementedError("Reference via module reference not implemented")
-
-        if symbol in reference_module.assignments:
+        if not module_reference and symbol in reference_module.assignments:
             return reference_module.assignments[symbol]
 
-        module_import = next(filter(lambda i: symbol in i.symbols, reference_module.imports), None)
-        if not module_import:
-            raise ValueError(f"External reference {symbol} is not imported")
+        if module_reference:
+            module_import = next(filter(lambda i: i.module_reference == module_reference, reference_module.imports), None)
+            if not module_import:
+                raise ValueError(f"Module {module_reference} is not imported")
+        else:
+            module_import = next(filter(lambda i: symbol in i.symbols, reference_module.imports), None)
+            if not module_import:
+                raise ValueError(f"External reference {symbol} is not imported")
 
         if module_import.oid:
             imported_module = self.oid_modules.get(module_import.oid.components)
