@@ -160,7 +160,7 @@ class Sequence(Type):
                     elif component.component_type.default_named_type:
                         named_type = component.component_type.default_named_type.named_type
                         optional = False
-                        default = component.component_type.default_named_type.default
+                        default = value.build_value(component.component_type.default_named_type.default, m, parameters)
                     elif component.component_type.components_of_type:
                         raise NotImplementedError(f"COMPONENTS OF not implemented")
                     else:
@@ -171,12 +171,11 @@ class Sequence(Type):
                         raise SyntaxError(f"Duplicate component {component_name} in SEQUENCE")
 
                     component_type = build_type(named_type.type[0], m, parameters)
-                    default_value = value.build_value(default, m, parameters) if default else None
 
                     components[component_name] = SequenceComponent(
                         type_definition=component_type,
                         optional=optional,
-                        default=default_value,
+                        default=default,
                         javadoc=javadoc.JavaDoc.build(component.javadoc) if component.javadoc else None
                     )
         return cls(components=components)
@@ -278,11 +277,10 @@ class SequenceOf(Type):
 
     @classmethod
     def build_size_sequence_of_type(
-            cls, type_def: pyparsing.ParseResults,
-            inner_type: Type, m: module.Module,
+            cls, type_def: pyparsing.ParseResults, m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
     ) -> "ConstrainedType":
-        inner_type_definition = build_type(type_def.type, m, parameters)
+        inner_type = build_type(type_def.type, m, parameters)
         constraint_spec = type_def.size_constraint.constraint[0].constraint_spec
         if constraint_spec.general_constraint:
             raise SyntaxError(f"General constraint invalid in a size constraint")
@@ -291,7 +289,7 @@ class SequenceOf(Type):
             raise SyntaxError("Size constraint inner constraint is not a ValueRange")
         return ConstrainedType(
             inner_type_definition=cls(
-                inner_type_definition=inner_type_definition,
+                inner_type_definition=inner_type,
             ),
             constraints=constraint.SizeConstraint(
                 length_range=inner_constraint
@@ -446,7 +444,7 @@ def build_type(
                 inner_type = SequenceOf.build_sequence_of_type(
                         type_def.constrained_type.type_of_with_constraint.sequence_of_type,
                         m, parameters,
-                    )
+                )
                 return ConstrainedType(
                     inner_type_definition=inner_type,
                     constraints=constraint.build_constraint(
