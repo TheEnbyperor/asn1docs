@@ -32,6 +32,8 @@ class Context:
             return False
         if isinstance(ref, type.Reference) and ref.type_reference in current_module.assignments:
             return False
+        if isinstance(ref, object.ClassReference) and ref.class_reference in current_module.assignments:
+            return False
         if isinstance(ref, object.SetReference) and ref.value_reference in current_module.assignments:
             return False
         return True
@@ -41,6 +43,8 @@ class Context:
             symbol = ref.value_reference
         elif isinstance(ref, type.Reference):
             symbol = ref.type_reference
+        elif isinstance(ref, object.ClassReference):
+            symbol = ref.class_reference
         else:
             util.assert_never(ref)
         if ref.module != current_module:

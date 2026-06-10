@@ -89,6 +89,24 @@
 
 {% macro object(def, module, context) %}
     <span class="tag type-tag">OBJECT</span>
+    <p>
+        This is an object of the class:
+        {% if def.object_class.is_parameter %}
+            <span class="tag type-reference parameter">
+                <span class="label">Parameter</span>
+                {{ def.object_class.class_reference }}
+            </span>
+        {% elif context.is_external_reference(def.object_class, module) %}
+            <a href="{{ context.module_relative_link(def.object_class, module) }}#symbol-{{ def.object_class.class_reference }}"
+               class="tag type-reference external-reference">
+                {{ def.object_class.class_reference }}
+            </a>
+        {% else %}
+            <a href="#symbol-{{ def.object_class.class_reference}}" class="tag type-reference">
+                {{ def.object_class.class_reference }}
+            </a>
+        {% endif %}
+    </p>
     <p>This object has the following field values:</p>
     {% with object_class = context.resolve_class_reference(def.object_class) %}
         {% with object = context.resolve_object_reference(def.object) %}

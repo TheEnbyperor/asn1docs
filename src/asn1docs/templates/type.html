@@ -33,7 +33,7 @@
 
 {% macro enumeration(def, module, context) %}
     <span class="tag type-tag">ENUMERATED</span>
-    <p>This sequence may have one of the following values:</p>
+    <p>The value of this enumeration may have one of the following values:</p>
     <dl class="fields">
         {% for v in def.values %}
             <dt>{{ v.name }}</dt>

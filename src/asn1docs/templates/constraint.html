@@ -167,7 +167,7 @@
             <p>
                 The value must come from the <span class="field-reference">{{ inner_type.field|join(".") }}</span> column of the object set:
                 {% if con.object_set.is_parameter %}
-                    <span class="tag type-reference parameter">
+                    <span class="tag value-reference parameter">
                         <span class="label">Parameter</span>
                         {{ con.object_set.value_reference }}
                     </span>
