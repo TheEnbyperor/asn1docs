@@ -1,0 +1,14 @@
+Metadata-Version: 2.4
+Name: asn1docs
+Version: 0.0.1
+Summary: Compile ASN.1 modules into HTML documentation.
+Home-page: https://github.com/TheEnbyperor/asn1docs
+Author: Q Misell
+Author-email: qmisell@mpi-inf.mpg.de
+Project-URL: Bug Tracker, https://github.com/TheEnbyperor/asn1docs/issues
+Requires-Python: >=3.11
+License-File: LICENSE.md
+Requires-Dist: pyparsing
+Requires-Dist: jinja2
+Requires-Dist: markdown-it-py
+Dynamic: license-file

@@ -232,67 +232,62 @@ def parse_module(source: str, oid_root: "oid_tree.OIDNode") -> Module:
                 symbols=[s[0] for s in import_module.value.symbols]
             ))
 
-    for assignment_def in assignments.value:
-        doc = javadoc.JavaDoc.build(assignment_def.value[0].javadoc) if assignment_def.value[0].javadoc else None
-        if ta := assignment_def.value[0].assignment.type_assignment:
-            symbol = ta.type_reference[0]
-            assignment = TypeAssignment(
-                type_definition=type.build_type(ta.type, module),
-                javadoc=doc,
-                parameters={}
-            )
-        elif va := assignment_def.value[0].assignment.value_assignment:
-            symbol = va.value_reference[0]
-            assignment = ValueAssignment(
-                value_type=type.build_type(va.type, module),
-                value=value.build_value(va.value, module),
-                javadoc=doc,
-                parameters={}
-            )
-        elif pa := assignment_def.value[0].assignment.parameterised_assignment:
-            if ta := pa.type_assignment:
+    if assignments:
+        for assignment_def in assignments.value:
+            doc = javadoc.JavaDoc.build(assignment_def.value[0].javadoc) if assignment_def.value[0].javadoc else None
+            if ta := assignment_def.value[0].assignment.type_assignment:
                 symbol = ta.type_reference[0]
-                parameters = build_assignment_parameters(ta.parameters, module)
                 assignment = TypeAssignment(
-                    type_definition=type.build_type(ta.type[0], module, parameters),
+                    type_definition=type.build_type(ta.type, module),
                     javadoc=doc,
-                    parameters=parameters,
+                    parameters={}
                 )
-            # elif oca := pa.object_class_assignment:
-            #     symbol = oca.object_class_reference[0]
-            #     assignment = None
-            # elif oca := pa.object_assignment:
-            #     symbol = oca.object_reference[0]
-            #     assignment = None
+            elif va := assignment_def.value[0].assignment.value_assignment:
+                symbol = va.value_reference[0]
+                assignment = ValueAssignment(
+                    value_type=type.build_type(va.type, module),
+                    value=value.build_value(va.value, module),
+                    javadoc=doc,
+                    parameters={}
+                )
+            elif pa := assignment_def.value[0].assignment.parameterised_assignment:
+                if ta := pa.type_assignment:
+                    symbol = ta.type_reference[0]
+                    parameters = build_assignment_parameters(ta.parameters, module)
+                    assignment = TypeAssignment(
+                        type_definition=type.build_type(ta.type[0], module, parameters),
+                        javadoc=doc,
+                        parameters=parameters,
+                    )
+                else:
+                    raise NotImplementedError(f"Unhandled parameterised assignment {pa}")
+            elif oca := assignment_def.value[0].assignment.object_class_assignment:
+                symbol = oca.object_class_reference[0]
+                assignment = ObjectClassAssignment(
+                    object=object.build_class(oca.object_class, module),
+                    javadoc=doc,
+                    parameters={}
+                )
+            elif oca := assignment_def.value[0].assignment.object_set_assignment:
+                symbol = oca.object_set_reference[0]
+                assignment = ObjectSetAssignment(
+                    object_class=object.ClassReference.build(oca.object_class[0], module),
+                    object_set=object.Set.build(oca.object_set, None, module),
+                    javadoc=doc,
+                    parameters={}
+                )
+            elif oca := assignment_def.value[0].assignment.object_assignment:
+                symbol = oca.object_reference[0]
+                assignment = ObjectAssignment(
+                    object_class=object.ClassReference.build(oca.object_class[0], module),
+                    object=object.build_object(oca.object, module),
+                    javadoc=doc,
+                    parameters={}
+                )
             else:
-                raise NotImplementedError(f"Unhandled parameterised assignment {pa}")
-        elif oca := assignment_def.value[0].assignment.object_class_assignment:
-            symbol = oca.object_class_reference[0]
-            assignment = ObjectClassAssignment(
-                object=object.build_class(oca.object_class, module),
-                javadoc=doc,
-                parameters={}
-            )
-        elif oca := assignment_def.value[0].assignment.object_set_assignment:
-            symbol = oca.object_set_reference[0]
-            assignment = ObjectSetAssignment(
-                object_class=object.ClassReference.build(oca.object_class[0], module),
-                object_set=object.Set.build(oca.object_set, None, module),
-                javadoc=doc,
-                parameters={}
-            )
-        elif oca := assignment_def.value[0].assignment.object_assignment:
-            symbol = oca.object_reference[0]
-            assignment = ObjectAssignment(
-                object_class=object.ClassReference.build(oca.object_class[0], module),
-                object=object.build_object(oca.object, module),
-                javadoc=doc,
-                parameters={}
-            )
-        else:
-            raise NotImplementedError(f"Unhandled assignment {assignment_def.value[0].assignment}")
-        module.add_assignment(symbol, assignment)
-        module_source.assignments.append(source[assignment_def.locn_start:assignment_def.locn_end])
+                raise NotImplementedError(f"Unhandled assignment {assignment_def.value[0].assignment}")
+            module.add_assignment(symbol, assignment)
+            module_source.assignments.append(source[assignment_def.locn_start:assignment_def.locn_end])
 
     module.set_source(module_source)
 

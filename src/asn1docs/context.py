@@ -11,6 +11,7 @@ class Context:
         self.oid_modules = {}
         self.name_modules = {}
         self.oid_root = oid_tree.OIDNode.root()
+        self.hydration_type_cache = {}
 
     def add_module(self, m: module.Module):
         if m.oid:
@@ -117,7 +118,7 @@ class Context:
             raise ValueError(f"Value reference {ref.value_reference} is not a value assignment")
         return assignment.value
 
-    def resolve_class_reference(self, ref: typing.Union[object.ObjectClass, object.ClassReference]) -> object.ObjectClass:
+    def resolve_class_reference(self, ref: typing.Union[object.Class, object.ClassReference]) -> object.Class:
         if not isinstance(ref, object.ClassReference):
             return ref
         assignment = self.resolve_reference(ref.class_reference, ref.module_reference, ref.module)
@@ -156,18 +157,22 @@ class Context:
             if current_module.oid:
                 current_oid = current_module.oid
             else:
-                raise NotImplementedError("OID relative to module without OID not implemented")
+                current_oid = None
         else:
             current_oid = oid
 
         common_components = 0
-        for c1, c2 in zip(truncated_oid.components, current_oid.components):
-            if c1 == c2:
-                common_components += 1
-            else:
-                break
-        backtrack_needed = len(current_oid.components) - common_components
-        components = "".join(["../" for _ in range(backtrack_needed)])
+        if current_oid is not None:
+            for c1, c2 in zip(truncated_oid.components, current_oid.components):
+                if c1 == c2:
+                    common_components += 1
+                else:
+                    break
+            backtrack_needed = len(current_oid.components) - common_components
+            components = "".join(["../" for _ in range(backtrack_needed)])
+        else:
+            components = "../../oid/"
+
         for c in list(truncated_oid.named_components())[common_components:]:
             if c.name:
                 components += f"{c.name}/"
@@ -175,3 +180,151 @@ class Context:
                 components += f"{str(c.number)}/"
 
         return components
+
+    def hydrate_values_all(self):
+        for m in self.oid_modules.values():
+            self.hydrate_values(m)
+        for m in self.name_modules.values():
+            self.hydrate_values(m)
+
+    def hydrate_values(self, m: module.Module):
+        for assignment in m.assignments.values():
+            if not isinstance(assignment, module.ValueAssignment):
+                continue
+            if new_val := self.hydrate_value(self.hydrate_type(assignment.value_type), assignment.value):
+                assignment.value = new_val
+
+    def hydrate_value(self, type_def: type.Type, val: value.Value) -> typing.Optional[value.Value]:
+        if isinstance(type_def, type.Sequence):
+            return self.hydrate_sequence(type_def, val)
+        elif isinstance(type_def, type.SequenceOf):
+            return self.hydrate_sequence_of(type_def, val)
+        elif isinstance(type_def, type.Choice):
+            return self.hydrate_choice(type_def, val)
+        elif isinstance(type_def, type.Enumeration):
+            return self.hydrate_enumeration(type_def, val)
+        elif isinstance(type_def, type.ConstrainedType):
+            return self.hydrate_value(type_def.inner_type_definition, val)
+        else:
+            return None
+
+    def hydrate_type(self, type_def: type.Type, parameters: typing.Dict[str, type.Type] = None) -> type.Type:
+        if parameters is None:
+            parameters = {}
+
+        type_key = (id(type_def), tuple((k, id(v)) for k, v in parameters.items()))
+        if type_key in self.hydration_type_cache:
+            return self.hydration_type_cache[type_key]
+        elif isinstance(type_def, type.Reference):
+            if type_def.is_parameter:
+                if type_def.type_reference not in parameters:
+                    raise SyntaxError(f"Parameter {type_def.type_reference} is not defined")
+                return parameters[type_def.type_reference]
+            else:
+                assignment = self.resolve_type_reference(type_def)
+                return self.hydrate_parameters(type_def, assignment, parameters)
+        elif isinstance(type_def, type.ObjectClassField):
+            object_class = self.resolve_class_reference(type_def.object_class)
+            if type_def.field[0] not in object_class.fields:
+                raise SyntaxError(f"Field {type_def.field} is not defined on object class")
+            field = object_class.fields[type_def.field[0]]
+            if not isinstance(field, object.FixedTypeValueField):
+                raise SyntaxError(f"Field {type_def.field} on object class does not have at type")
+            return field.type
+        elif isinstance(type_def, type.Sequence):
+            new_type = type.Sequence(components={})
+            self.hydration_type_cache[type_key] = new_type
+            new_type.components = {
+                k: type.SequenceComponent(
+                    type_definition=self.hydrate_type(v.type_definition, parameters),
+                    optional=v.optional,
+                    default=v.default,
+                    javadoc=v.javadoc,
+                ) for k, v in type_def.components.items()
+            }
+            return new_type
+        elif isinstance(type_def, type.SequenceOf):
+            new_type = type.SequenceOf(inner_type_definition=None)
+            self.hydration_type_cache[type_key] = new_type
+            new_type.inner_type_definition = self.hydrate_type(type_def.inner_type_definition, parameters)
+            return new_type
+        elif isinstance(type_def, type.Choice):
+            new_type = type.Choice(components={})
+            self.hydration_type_cache[type_key] = new_type
+            new_type.components = {
+                k: type.ChoiceComponent(
+                    type_definition=self.hydrate_type(v.type_definition, parameters),
+                    javadoc=v.javadoc,
+                ) for k, v in type_def.components.items()
+            }
+            return new_type
+        else:
+            return type_def
+
+    def hydrate_parameters(
+            self, type_def: type.Reference, assignment: module.TypeAssignment, parameters: typing.Dict[str, type.Type]
+    ) -> typing.Union[type.Type, object.Set]:
+        inner_type_def = assignment.type_definition
+        if assignment.parameters:
+            if len(type_def.parameters) != len(assignment.parameters):
+                raise SyntaxError(f"Invalid number of parameters for {type_def.type_reference}")
+
+            for (param_name, param), param_value in zip(assignment.parameters.items(), type_def.parameters):
+                if param.parameter_type == module.ParameterType.Type:
+                    if param_value.is_value:
+                        raise SyntaxError(f"Value given to type parameter {param_name}")
+
+                    if isinstance(param_value.value, type.Reference):
+                        assignment = self.resolve_reference(param_value.value.type_reference,
+                                                            param_value.value.module_reference,
+                                                            param_value.value.module)
+                        if isinstance(assignment, module.TypeAssignment):
+                            param_value_type = self.hydrate_parameters(param_value.value, assignment, parameters)
+                        elif isinstance(assignment, module.ObjectSetAssignment):
+                            return assignment.object_set
+                    else:
+                        param_value_type = self.hydrate_type(param_value.value, parameters)
+
+                    parameters[param_name] = param_value_type
+
+        return self.hydrate_type(inner_type_def, parameters)
+
+    def hydrate_sequence(self, type_def: type.Sequence, val: value.Value) -> typing.Optional[value.Value]:
+        if not isinstance(val, value.Sequence):
+            raise SyntaxError(f"Non-sequence value assigned to sequence type, got {val.VALUE_TYPE}")
+        for field_name, field in type_def.components.items():
+            if not (field.optional or field.default) and field_name not in val.fields:
+                raise SyntaxError(f"Non-optional sequence field {field_name} not set")
+            if field_name in val.fields:
+                if new_val := self.hydrate_value(self.hydrate_type(field.type_definition), val.fields[field_name].value):
+                    val.fields[field_name].value = new_val
+        for field_name in val.fields.keys():
+            if field_name not in type_def.components:
+                raise SyntaxError(f"sequence field {field_name} does not exist")
+
+    def hydrate_sequence_of(self, type_def: type.SequenceOf, val: value.Value) -> typing.Optional[value.Value]:
+        if not isinstance(val, value.SequenceOf):
+            raise SyntaxError(f"Non-sequence-of value assigned to sequence-of type, got {val.VALUE_TYPE}")
+        inner_type = self.hydrate_type(type_def.inner_type_definition)
+        for i, v in enumerate(val.values):
+            if new_val := self.hydrate_value(inner_type, v):
+                val.values[i] = new_val
+
+    def hydrate_choice(self, type_def: type.Choice, val: value.Value) -> typing.Optional[value.Value]:
+        if not isinstance(val, value.Choice):
+            raise SyntaxError(f"Non-choice value assigned to choice type, got {val.VALUE_TYPE}")
+        if val.variant not in type_def.components:
+            raise SyntaxError(f"Choice variant {val.variant} does not exist")
+        variant = type_def.components[val.variant]
+        if new_val := self.hydrate_value(self.hydrate_type(variant.type_definition), val.value):
+            val.value = new_val
+
+    def hydrate_enumeration(self, type_def: type.Enumeration, val: value.Value) -> typing.Optional[value.Value]:
+        if isinstance(val, value.Reference):
+            if val.module_reference:
+                return
+            enum_value = next(filter(lambda e: e.name == val.value_reference, type_def.values), None)
+            if enum_value:
+                return value.Enumeration(
+                    value=val.value_reference
+                )

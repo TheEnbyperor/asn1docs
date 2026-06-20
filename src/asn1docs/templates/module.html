@@ -1,8 +1,8 @@
-{% import "syntax_highlight.html" as syntax %}
-{% import "javadoc.html" as javadoc %}
-{% import "type.html" as type %}
-{% import "value.html" as value %}
-{% import "object.html" as object %}
+{%- import "syntax_highlight.html" as syntax -%}
+{%- import "javadoc.html" as javadoc -%}
+{%- import "type.html" as type -%}
+{%- import "value.html" as value -%}
+{%- import "object.html" as object -%}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -17,12 +17,12 @@
 <div class="page">
     <header class="hero">
         <h1>{{ module.module_reference }}</h1>
-        {% if module.oid %}
+        {%- if module.oid -%}
             {{ value.oid(module.oid, module, context) }}
-        {% endif %}
-        {% if module.javadoc %}
+        {%- endif -%}
+        {%- if module.javadoc -%}
             {{ javadoc.javadoc(module.javadoc) }}
-        {% endif %}
+        {%- endif -%}
     </header>
 
     <main class="layout">

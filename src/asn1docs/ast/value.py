@@ -2,7 +2,7 @@ import abc
 import typing
 import dataclasses
 import pyparsing
-from . import util, module
+from . import util, module, javadoc
 
 class Value(metaclass=abc.ABCMeta):
     VALUE_TYPE: str
@@ -15,6 +15,9 @@ class Value(metaclass=abc.ABCMeta):
     def is_value(self):
         return True
 
+@dataclasses.dataclass
+class Null(Value):
+    VALUE_TYPE = "NULL"
 
 @dataclasses.dataclass
 class Integer(Value):
@@ -40,6 +43,17 @@ class CharacterString(Value):
 
 
 @dataclasses.dataclass
+class OctetString(Value):
+    VALUE_TYPE = "OCTET_STRING"
+
+    value: bytes
+
+    @property
+    def as_ascii(self):
+        return self.value.decode("ascii", "replace")
+
+
+@dataclasses.dataclass
 class Enumeration(Value):
     VALUE_TYPE = "ENUMERATION"
 
@@ -60,12 +74,23 @@ class Choice(Value):
     variant: str
     value: Value
 
+@dataclasses.dataclass
+class SequenceValue:
+    javadoc: typing.Optional["javadoc.Javadoc"]
+    value: Value
+
 
 @dataclasses.dataclass
 class Sequence(Value):
     VALUE_TYPE = "SEQUENCE"
 
-    fields: typing.Dict[str, Value]
+    fields: typing.Dict[str, SequenceValue]
+
+@dataclasses.dataclass
+class SequenceOf(Value):
+    VALUE_TYPE = "SEQUENCE_OF"
+
+    values: typing.List[Value]
 
 
 @dataclasses.dataclass
@@ -187,7 +212,9 @@ def build_value(
         parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
 ) -> Value:
     if value_def.built_in_value:
-        if value_def.built_in_value.integer_value:
+        if value_def.built_in_value.null_value:
+            return Null()
+        elif value_def.built_in_value.integer_value:
             if value_def.built_in_value.integer_value.signed_number:
                 return Integer.build(value_def.built_in_value.integer_value.signed_number[0])
         elif value_def.built_in_value.character_string_value:
@@ -195,10 +222,15 @@ def build_value(
                 return CharacterString(
                     value_def.built_in_value.character_string_value.cstring[1:-1].replace('""', '"')
                 )
+        elif value_def.built_in_value.octet_string_value:
+            if value_def.built_in_value.octet_string_value.hstring:
+                return OctetString(
+                    bytes.fromhex(value_def.built_in_value.octet_string_value.hstring[1:-2])
+                )
         elif value_def.built_in_value.enumerated_value:
             return Enumeration(value_def.built_in_value.enumerated_value[0])
         elif value_def.built_in_value.boolean_value:
-            return Boolean(True if value_def.built_in_value.boolean_value[0] == "TRUE" else False)
+            return Boolean(True if value_def.built_in_value.boolean_value == "TRUE" else False)
         elif value_def.built_in_value.choice_value:
             return Choice(
                 variant=value_def.built_in_value.choice_value.identifier[0],
@@ -208,13 +240,22 @@ def build_value(
             if value_def.built_in_value.sequence_value.component_value_list:
                 fields = {}
                 for field in value_def.built_in_value.sequence_value.component_value_list:
-                    ref = field.name[0]
+                    ref = field.named_value.name[0]
                     if ref in fields:
                         raise SyntaxError(f"Duplicate field {ref} in sequence value")
-                    fields[ref] = build_value(field.value[0], m, parameters)
+                    fields[ref] = SequenceValue(
+                        javadoc=javadoc.JavaDoc.build(field.javadoc) if field.javadoc else None,
+                        value=build_value(field.named_value.value[0], m, parameters)
+                    )
                 return Sequence(fields=fields)
             else:
                 return Sequence(fields={})
+        elif value_def.built_in_value.sequence_of_value:
+            if value_def.built_in_value.sequence_of_value.value_list:
+                values = []
+                for value in value_def.built_in_value.sequence_of_value.value_list:
+                    values.append(build_value(value, m, parameters))
+                return SequenceOf(values=values)
         elif value_def.built_in_value.object_identifier_value:
             return ObjectIdentifier.build(value_def.built_in_value.object_identifier_value, m, parameters)
         raise NotImplementedError(f"Unhandled value {value_def}")

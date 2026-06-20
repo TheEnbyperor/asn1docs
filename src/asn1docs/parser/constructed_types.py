@@ -20,6 +20,7 @@ VersionNumber = pyparsing.Forward()
 ComponentValueList = pyparsing.Forward()
 ValueList = pyparsing.Forward()
 NamedValueList = pyparsing.Forward()
+DocumentedNamedValue = pyparsing.Forward()
 AlternativeTypeLists = pyparsing.Forward()
 AlternativeTypeList = pyparsing.Forward()
 DocumentedNamedType = pyparsing.Forward()
@@ -112,8 +113,8 @@ SequenceOfType = pyparsing.Group(
 
 # 26.3
 SequenceOfValue = pyparsing.Group(
-    (lexical_items.LBRACE + NamedValueList + lexical_items.RBRACE)
-    | (lexical_items.LBRACE + ValueList + lexical_items.RBRACE)
+    (lexical_items.LBRACE + NamedValueList("named_value_list") + lexical_items.RBRACE)
+    | (lexical_items.LBRACE + ValueList("value_list") + lexical_items.RBRACE)
     | (lexical_items.LBRACE + lexical_items.RBRACE)
 )
 
@@ -124,10 +125,15 @@ ValueList <<= pyparsing.Group(pyparsing.delimited_list(
 ))
 
 NamedValueList <<= pyparsing.Group(pyparsing.delimited_list(
-    values_types.NamedValue,
+    DocumentedNamedValue,
     delim=lexical_items.COMMA,
     min=1
 ))
+
+DocumentedNamedValue <<= pyparsing.Group(
+    pyparsing.Optional(javadoc.javadoc("javadoc")) +
+    values_types.NamedValue("named_value")
+)
 
 # ITU-T X.680 Section 27
 

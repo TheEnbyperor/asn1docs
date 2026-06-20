@@ -283,8 +283,8 @@ OctetStringType <<= pyparsing.Keyword("OCTET STRING")
 
 # 23.3
 OctetStringValue <<= pyparsing.Group(
-    lexical_items.bstring
-    | lexical_items.hstring
+    lexical_items.bstring("bstring")
+    | lexical_items.hstring("hstring")
     | (pyparsing.Keyword("CONTAINING") + values_types.Value)
 )
 

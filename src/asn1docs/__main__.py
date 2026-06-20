@@ -1,5 +1,7 @@
 import argparse
 import pathlib
+import sys
+
 import jinja2
 import pyparsing
 import typing
@@ -34,6 +36,8 @@ def render_oid_indexes(nodes: typing.List[oid_tree.OIDNode], c: context.Context,
         render_oid_indexes(nodes + [node], c, node_path)
 
 def main():
+    sys.setrecursionlimit(9000)
+
     parser = argparse.ArgumentParser(
         prog="ASN1Docs",
         description="Compile ASN.1 modules into HTML documentation."
@@ -57,6 +61,8 @@ def main():
 
     for m in modules:
         c.add_module(m)
+
+    c.hydrate_values_all()
 
     for m in modules:
         print(f"Rendering {m.module_reference}", flush=True)

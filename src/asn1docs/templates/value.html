@@ -1,3 +1,5 @@
+{% import "javadoc.html" as javadoc %}
+
 {% macro oid(val, module, context) %}
     <nav class="oid-breadcrumbs">
         <a href="{{ context.oid_relative_link(val, 0, module) }}">
@@ -71,10 +73,20 @@
                 {% endif %}
             {% endif %}
         {% endif %}
+    {% elif val.VALUE_TYPE == "NULL" %}
+        <code><span class="syntax-keyword">NULL</span></code>
+    {% elif val.VALUE_TYPE == "BOOLEAN" %}
+        {% if val.value %}
+            <code><span class="syntax-keyword">TRUE</span></code>
+        {% else %}
+            <code><span class="syntax-keyword">FALSE</span></code>
+        {% endif %}
     {% elif val.VALUE_TYPE == "INTEGER" %}
         <code><span class="syntax-number">{{ val.value }}</span></code>
     {% elif val.VALUE_TYPE == "CHARACTER_STRING" %}
         <code><span class="syntax-string">{{ val.value }}</span></code>
+    {% elif val.VALUE_TYPE == "OCTET_STRING" %}
+        <code><span class="syntax-string">{{ val.value.hex() }}</span></code> ({{ val.as_ascii }})
     {% elif val.VALUE_TYPE == "OBJECT_IDENTIFIER" %}
         {{ oid(context.store_oid(val, module), module, context) }}
     {% elif val.VALUE_TYPE == "ENUMERATION" %}
@@ -85,6 +97,15 @@
             {{ val.variant }}
         </span>
         {{ value(val.value, module, context) }}
+    {% elif val.VALUE_TYPE == "SEQUENCE_OF" %}
+        {% if val.values %}
+            {% for v in val.values %}
+                <h4>Value #{{ loop.index }}</h4>
+                {{ value(v, module, context) }}
+            {% endfor %}
+        {% else %}
+            <span class="tag type-tag">EMPTY SEQUENCE OF</span>
+        {% endif %}
     {% elif val.VALUE_TYPE == "SEQUENCE" %}
         {% if val.fields %}
             <span class="tag type-tag">SEQUENCE</span>
@@ -94,7 +115,10 @@
                         {{ k }}
                     </dt>
                     <dd>
-                        {{ value(v, module, context) }}
+                        {% if v.javadoc %}
+                            {{ javadoc.javadoc(v.javadoc) }}
+                        {% endif %}
+                        {{ value(v.value, module, context) }}
                     </dd>
                 {% endfor %}
             </dl>
