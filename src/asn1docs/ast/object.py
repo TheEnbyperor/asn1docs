@@ -200,8 +200,8 @@ class Set:
                 members.append(spec.value)
             elif isinstance(spec, constraint.ConstraintUnion):
                 for member in spec.constraints:
-                    if isinstance(spec, constraint.Object):
-                        members.append(spec.object)
+                    if isinstance(member, constraint.Object):
+                        members.append(member.object)
                     elif isinstance(member, constraint.SingleValue):
                         members.append(member.value)
                     else:
@@ -298,7 +298,10 @@ class Object:
                     token_value = c.resolve_value_reference(next_token)
                 else:
                     token_value = next_token
-                if not object_class.fields[element.name].type.acceptable_value(token_value):
+                field_type = object_class.fields[element.name].type
+                if isinstance(field_type, type.Reference):
+                    field_type = c.resolve_type_reference(field_type).type_definition
+                if not field_type.acceptable_value(token_value):
                     raise SyntaxError(f"Object definition invalid: unsuitable type for value field {element.name}: {token_value}")
                 fields[element.name] = next_token
 

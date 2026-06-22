@@ -377,7 +377,6 @@ tbody td, tbody th {
     padding: 6px 10px;
     color: var(--text);
     border-bottom: 1px solid rgba(148, 163, 184, 0.10);
-    vertical-align: top;
 }
 
 tbody tr:last-child td {

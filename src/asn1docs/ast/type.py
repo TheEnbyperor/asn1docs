@@ -53,7 +53,7 @@ class Null(Type):
     TYPE_NAME = "NULL"
 
     def acceptable_value(self, value_instance: value.Value) -> bool:
-        return False
+        return isinstance(value_instance, value.Null)
 
 
 @dataclasses.dataclass
