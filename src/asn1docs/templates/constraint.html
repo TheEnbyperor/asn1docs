@@ -161,6 +161,12 @@
             <p>Any value, except any satisfying the following:</p>
             {{ constraint(con.constraint, module, context) }}
         </div>
+    {% elif con.CONSTRAINT_TYPE == "EXTENSIBLE" %}
+        <div class="constraint card">
+            <h4>Extensible</h4>
+            <p>In the base case, the following constraint, but otherwise unconstrained:</p>
+            {{ constraint(con.constraint, module, context) }}
+        </div>
     {% elif con.CONSTRAINT_TYPE == "TABLE" %}
         <div class="constraint card">
             <h4>Table</h4>

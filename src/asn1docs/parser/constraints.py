@@ -76,8 +76,8 @@ SubtypeElements = pyparsing.Forward()
 
 # 50.1
 ElementSetSpecs <<= pyparsing.Group(
-    (ElementSetSpec + lexical_items.COMMA + lexical_items.ellipsis + lexical_items.COMMA + ElementSetSpec)
-    | (ElementSetSpec + lexical_items.COMMA + lexical_items.ellipsis)
+    (ElementSetSpec("basic_constraint") + lexical_items.COMMA + lexical_items.ellipsis("extended") + lexical_items.COMMA + ElementSetSpec("extended_constraint"))
+    | (ElementSetSpec("basic_constraint") + lexical_items.COMMA + lexical_items.ellipsis("extensible"))
     | ElementSetSpec("basic_constraint")
 )
 

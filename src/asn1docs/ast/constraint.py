@@ -7,8 +7,8 @@ from . import type, value, util, module, object
 
 Constraint = typing.Union[
     "ValueRange", "SingleValue", "Object", "SizeConstraint", "PermittedAlphabetConstraint", "SingleInnerType", "MultipleInnerType",
-    "Contents", "ConstraintUnion", "ConstraintIntersection", "ConstraintExclusion", "ConstraintInverse", "UserDefinedConstraint",
-    "TableConstraint"
+    "Contents", "ConstraintUnion", "ConstraintIntersection", "ConstraintExclusion", "ConstraintInverse", "ConstraintExtensible",
+    "ConstraintExtended", "UserDefinedConstraint", "TableConstraint"
 ]
 
 @dataclasses.dataclass
@@ -92,6 +92,8 @@ class SizeConstraint:
         if constraint_spec.general_constraint:
             raise SyntaxError(f"General constraint invalid in a size constraint")
         inner_constraint = build_constraint(constraint_spec, inner_type, m, parameters)
+        if isinstance(inner_constraint, ConstraintExtensible):
+            inner_constraint = inner_constraint.constraint
         if isinstance(inner_constraint, ValueRange):
             if inner_constraint.min:
                 if isinstance(inner_constraint.min, value.Integer):
@@ -221,6 +223,19 @@ class ConstraintExclusion:
 class ConstraintInverse:
     CONSTRAINT_TYPE = "INVERSE"
     constraint: Constraint
+
+
+@dataclasses.dataclass
+class ConstraintExtensible:
+    CONSTRAINT_TYPE = "EXTENSIBLE"
+    constraint: Constraint
+
+
+@dataclasses.dataclass
+class ConstraintExtended:
+    CONSTRAINT_TYPE = "EXTENDED"
+    basic_constraint: Constraint
+    extended_constraint: Constraint
 
 
 @dataclasses.dataclass
@@ -436,4 +451,16 @@ def build_constraint(
     if constraint.general_constraint:
         return build_general_constraint(constraint.general_constraint, inner_type, m, parameters)
     else:
-        return build_constraint_exclusions(constraint.subtype_constraint.basic_constraint, inner_type, m, parameters)
+        basic_constraint = build_constraint_exclusions(constraint.subtype_constraint.basic_constraint, inner_type, m, parameters)
+        if constraint.subtype_constraint.extensible:
+            return ConstraintExtensible(
+                constraint=basic_constraint,
+            )
+        elif constraint.subtype_constraint.extended:
+            extended_constraint = build_constraint_exclusions(constraint.subtype_constraint.extended_constraint, inner_type, m, parameters)
+            return ConstraintExtended(
+                basic_constraint=basic_constraint,
+                extended_constraint=extended_constraint,
+            )
+        else:
+            return basic_constraint
