@@ -115,6 +115,22 @@
                 {% endwith %}
             {% endwith %}
         {% endif %}
+    {% elif def.TYPE_NAME == "SET_REFERENCE" %}
+        {% if def.is_parameter %}
+            <span class="tag value-reference parameter">
+                <span class="label">Parameter</span>
+                {{ def.value_reference }}
+            </span>
+        {% elif context.is_external_reference(def, module) %}
+            <a href="{{ context.module_relative_link(def, module) }}#symbol-{{ def.value_reference }}"
+               class="tag value-reference external-reference">
+                {{ def.value_reference }}
+            </a>
+        {% else %}
+            <a href="#symbol-{{ def.value_reference }}" class="tag value-reference">
+                {{ def.value_reference }}
+            </a>
+        {% endif %}
     {% elif def.TYPE_NAME == "NULL" %}
         <span class="tag type-tag">NULL</span>
     {% elif def.TYPE_NAME == "ANY" %}

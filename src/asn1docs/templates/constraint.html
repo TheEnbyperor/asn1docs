@@ -172,21 +172,7 @@
             <h4>Table</h4>
             <p>
                 The value must come from the <span class="field-reference">{{ inner_type.field|join(".") }}</span> column of the object set:
-                {% if con.object_set.is_parameter %}
-                    <span class="tag value-reference parameter">
-                        <span class="label">Parameter</span>
-                        {{ con.object_set.value_reference }}
-                    </span>
-                {% elif context.is_external_reference(con.object_set, module) %}
-                    <a href="{{ context.module_relative_link(con.object_set, module) }}#symbol-{{ con.object_set.value_reference }}"
-                       class="tag value-reference external-reference">
-                        {{ con.object_set.value_reference }}
-                    </a>
-                {% else %}
-                    <a href="#symbol-{{ con.object_set.value_reference }}" class="tag value-reference">
-                        {{ con.object_set.value_reference }}
-                    </a>
-                {% endif %}
+                {{ type.type(con.object_set, module, context) }}
                 {% if con.fields %}
                     <br/>
                     The row is selected by the value of the fields:

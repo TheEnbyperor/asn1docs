@@ -265,10 +265,9 @@ class TableConstraint:
             raise SyntaxError("Table constraint can only be applied to an ObjectClassFieldType")
         fields = []
         if constraint_def.simple_table_constraint:
-            os = object.Set.build(constraint_def.simple_table_constraint, inner_type, m, parameters)
-            if not (not os.extensible and len(os.members) == 1 and isinstance(os.members[0], object.SetReference)):
+            set_reference = object.Set.build(constraint_def.simple_table_constraint, inner_type, m, parameters)
+            if not isinstance(set_reference, object.SetReference):
                 raise NotImplementedError("Table constraint with non-inline object set")
-            set_reference = os.members[0]
         elif constraint_def.component_relation_constraint:
             set_reference = object.SetReference.build(constraint_def.component_relation_constraint.defined_object_set, m, parameters)
             for field in constraint_def.component_relation_constraint.at_notation:

@@ -180,7 +180,8 @@ def build_class(
 
 @dataclasses.dataclass
 class Set:
-    members: typing.List[typing.Union[Object,  value.Value]]
+    TYPE_NAME = "SET"
+    members: typing.List[typing.Union[Object, value.Value]]
     extensible: bool
 
     @classmethod
@@ -190,7 +191,7 @@ class Set:
             inner_type: typing.Optional[type.Type],
             m: module.Module,
             parameters: typing.Optional[typing.Dict[str, "module.AssignmentParameter"]] = None
-    ) -> "Set":
+    ) -> typing.Union["Set", value.Value]:
         members = []
         if set_def.spec.root_element_spec:
             spec = constraint.build_constraint_exclusions(set_def.spec.root_element_spec[0], inner_type, m, parameters)
@@ -208,13 +209,17 @@ class Set:
                         raise NotImplementedError("Object set members too complicated")
             else:
                 raise NotImplementedError("Object set members too complicated")
+        extensible = bool(set_def.spec.extensible)
+        if len(members) == 1 and not isinstance(members[0], Object) and not extensible:
+            return members[0]
         return cls(
             members=members,
-            extensible=bool(set_def.spec.extensible),
+            extensible=extensible,
         )
 
 @dataclasses.dataclass
 class SetReference:
+    TYPE_NAME = "SET_REFERENCE"
     module: module.Module
     value_reference: str
     module_reference: typing.Optional[str] = None

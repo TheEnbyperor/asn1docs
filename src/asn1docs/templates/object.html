@@ -66,10 +66,14 @@
                         {% with object_def = object.parse_definition(object_class, context) %}
                             {% for k in object_class.fields.keys() %}
                                 {% with v = object_def.fields[k] %}
-                                    {% if v.is_type %}
-                                        <td>{{ type.type(v, module, context) }}</td>
-                                    {% elif v.is_value %}
-                                        <td>{{ value.value(v, module, context) }}</td>
+                                    {% if v %}
+                                        {% if v.is_type %}
+                                            <td>{{ type.type(v, module, context) }}</td>
+                                        {% elif v.is_value %}
+                                            <td>{{ value.value(v, module, context) }}</td>
+                                        {% endif %}
+                                    {% else %}
+                                        <td>No value</td>
                                     {% endif %}
                                 {% endwith %}
                             {% endfor %}
@@ -116,10 +120,14 @@
                         <dt>{{ k }}</dt>
                         <dd>
                             {% with v = object_def.fields[k] %}
-                                {% if v.is_type %}
-                                    {{ type.type(v, module, context) }}
-                                {% elif v.is_value %}
-                                    {{ value.value(v, module, context) }}
+                                {% if v %}
+                                    {% if v.is_type %}
+                                        {{ type.type(v, module, context) }}
+                                    {% elif v.is_value %}
+                                        {{ value.value(v, module, context) }}
+                                    {% endif %}
+                                {% else %}
+                                    <td>No value</td>
                                 {% endif %}
                             {% endwith %}
                         </dd>
