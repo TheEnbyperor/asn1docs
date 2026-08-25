@@ -395,6 +395,11 @@ def build_type(
             return SequenceOf.build_sequence_of_type(type_def.built_in_type.sequence_of_type, m, parameters)
         elif type_def.built_in_type.object_class_field_type:
             return ObjectClassField.build_type(type_def.built_in_type.object_class_field_type, m, parameters)
+        elif type_def.built_in_type.prefixed_type:
+            if type_def.built_in_type.prefixed_type.taged_type:
+                return build_type(type_def.built_in_type.prefixed_type.taged_type.inner_type[0], m, parameters)
+            else:
+                raise NotImplementedError(f"Unhandled prefixed type {type_def.built_in_type.prefixed_type}")
         else:
             raise NotImplementedError(f"Unhandled built-in type {type_def.built_in_type}")
     elif type_def.referenced_type:

@@ -300,38 +300,40 @@ NullValue <<= pyparsing.Keyword("NULL")
 
 # 31.1.5
 PrefixedType <<= pyparsing.Group(
-    TaggedType
-    | EncodingPrefixedType
+    TaggedType("taged_type")
+    | EncodingPrefixedType("encoding_prefixed_type")
 )
 
 # 31.2.1
 TaggedType <<= pyparsing.Group(
-    Tag + (
-        values_types.Type
-        | (pyparsing.Keyword("IMPLICIT") + values_types.Type)
-        | (pyparsing.Keyword("EXPLICIT") + values_types.Type)
+    Tag("tag") + (
+        values_types.Type("inner_type")
+        | (pyparsing.Keyword("IMPLICIT")("explicitly_tagged") + values_types.Type("inner_type"))
+        | (pyparsing.Keyword("EXPLICIT")("implicitly_tagged") + values_types.Type("inner_type"))
     )
 )
 
 Tag <<= pyparsing.Group(
-    lexical_items.LBRACK + EncodingReference + Class + ClassNumber + lexical_items.RBRACK
+    lexical_items.LBRACK
+    + pyparsing.Optional(EncodingReference("encoding_reference"))
+    + pyparsing.Optional(Class("class"))
+    + ClassNumber("class_number")
+    + lexical_items.RBRACK
 )
 
 EncodingReference <<= pyparsing.Group(
-    (lexical_items.encodingreference + lexical_items.COLON)
-    | lexical_items.empty
+    lexical_items.encodingreference("encoding_reference") + lexical_items.COLON
 )
 
 ClassNumber <<= pyparsing.Group(
-    lexical_items.number
-    | values_types.DefinedValue
+    lexical_items.number("literal_number")
+    | values_types.DefinedValue("defined_value")
 )
 
 Class <<= pyparsing.Group(
-    pyparsing.Keyword("UNIVERSAL")
-    | pyparsing.Keyword("APPLICATION")
-    | pyparsing.Keyword("PRIVATE")
-    | lexical_items.empty
+    pyparsing.Keyword("UNIVERSAL")("univarsal")
+    | pyparsing.Keyword("APPLICATION")("application")
+    | pyparsing.Keyword("PRIVATE")("private")
 )
 
 # 31.3.1
