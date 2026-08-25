@@ -264,50 +264,72 @@ class Object:
     def parse_definition_defined_syntax(self, object_class: Class, c: context.Context) -> DefinedObject:
         assert object_class.syntax is not None
         assert isinstance(self.definition, DefinedSyntax)
-        i = 0
+
         fields = {}
-        for element in object_class.syntax:
-            next_token = self.definition.tokens[i]
-            if isinstance(element, SyntaxLiteral):
-                if not isinstance(next_token, str):
-                    raise SyntaxError(f"Object definition invalid: expected {element.value} found {next_token}")
-                if next_token != element.value:
-                    raise SyntaxError(f"Object definition invalid: expected {element.value} found {next_token}")
 
-            elif isinstance(element, SyntaxTypeFieldReference):
-                if not isinstance(next_token, type.Type):
-                    raise SyntaxError(f"Object definition invalid: expected type found {next_token}")
-                if element.name not in object_class.fields:
-                    raise SyntaxError(f"Object definition invalid: type field {element.name} not found")
-                if not isinstance(object_class.fields[element.name], TypeField):
-                    raise SyntaxError(f"Object definition invalid: field {element.name} not a type field")
-                if element.name in fields:
-                    raise SyntaxError(f"Object definition invalid: duplicate definition for field {element.name}")
-                fields[element.name] = next_token
+        def match_elements(elements, i):
+            for element in elements:
+                if i >= len(self.definition.tokens):
+                    raise SyntaxError(f"Object definition invalid: out of tokens")
+                next_token = self.definition.tokens[i]
 
-            elif isinstance(element, SyntaxValueFieldReference):
-                if not isinstance(next_token, value.Value):
-                    raise SyntaxError(f"Object definition invalid: expected value found {next_token}")
-                if element.name not in object_class.fields:
-                    raise SyntaxError(f"Object definition invalid: value field {element.name} not found")
-                if not isinstance(object_class.fields[element.name], FixedTypeValueField):
-                    raise SyntaxError(f"Object definition invalid: field {element.name} not a value field")
-                if element.name in fields:
-                    raise SyntaxError(f"Object definition invalid: duplicate definition for field {element.name}")
-                if isinstance(next_token, value.Reference):
-                    token_value = c.resolve_value_reference(next_token)
+                if isinstance(element, SyntaxLiteral):
+                    if not isinstance(next_token, str):
+                        raise SyntaxError(f"Object definition invalid: expected {element.value} found {next_token}")
+                    if next_token != element.value:
+                        raise SyntaxError(f"Object definition invalid: expected {element.value} found {next_token}")
+                    i += 1
+
+                elif isinstance(element, SyntaxTypeFieldReference):
+                    if isinstance(next_token, value.Null):
+                        next_token = type.Null()
+                    if not isinstance(next_token, type.Type):
+                        raise SyntaxError(f"Object definition invalid: expected type found {next_token}")
+                    if element.name not in object_class.fields:
+                        raise SyntaxError(f"Object definition invalid: type field {element.name} not found")
+                    if not isinstance(object_class.fields[element.name], TypeField):
+                        raise SyntaxError(f"Object definition invalid: field {element.name} not a type field")
+                    if element.name in fields:
+                        raise SyntaxError(f"Object definition invalid: duplicate definition for field {element.name}")
+                    fields[element.name] = next_token
+                    i += 1
+
+                elif isinstance(element, SyntaxValueFieldReference):
+                    if not isinstance(next_token, value.Value):
+                        raise SyntaxError(f"Object definition invalid: expected value found {next_token}")
+                    if element.name not in object_class.fields:
+                        raise SyntaxError(f"Object definition invalid: value field {element.name} not found")
+                    if not isinstance(object_class.fields[element.name], FixedTypeValueField):
+                        raise SyntaxError(f"Object definition invalid: field {element.name} not a value field")
+                    if element.name in fields:
+                        raise SyntaxError(f"Object definition invalid: duplicate definition for field {element.name}")
+                    if isinstance(next_token, value.Reference):
+                        token_value = c.resolve_value_reference(next_token)
+                    else:
+                        token_value = next_token
+                    field_type = object_class.fields[element.name].type
+                    if isinstance(field_type, type.Reference):
+                        field_type = c.resolve_type_reference(field_type).type_definition
+                    if not field_type.acceptable_value(token_value):
+                        raise SyntaxError(f"Object definition invalid: unsuitable type for value field {element.name}: {token_value}")
+                    fields[element.name] = next_token
+                    i += 1
+
+                elif isinstance(element, SyntaxOptionalGroup):
+                    first_element = element.elements[0]
+                    if isinstance(first_element, SyntaxLiteral):
+                        if not isinstance(next_token, str):
+                            continue
+                        if next_token != first_element.value:
+                            continue
+                    i = match_elements(element.elements, i)
+
                 else:
-                    token_value = next_token
-                field_type = object_class.fields[element.name].type
-                if isinstance(field_type, type.Reference):
-                    field_type = c.resolve_type_reference(field_type).type_definition
-                if not field_type.acceptable_value(token_value):
-                    raise SyntaxError(f"Object definition invalid: unsuitable type for value field {element.name}: {token_value}")
-                fields[element.name] = next_token
+                    util.assert_never(element)
 
-            else:
-                util.assert_never(element)
-            i += 1
+            return i
+
+        match_elements(object_class.syntax, 0)
 
         for n, f in object_class.fields.items():
             if n in fields:
