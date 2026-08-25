@@ -1,7 +1,7 @@
 import typing
 import pyparsing
 import dataclasses
-from . import value, type, module
+from . import value, type, module, object
 
 def assert_never(arg: typing.Any) -> typing.Never:
     raise AssertionError("Expected code to be unreachable")
@@ -10,7 +10,7 @@ def assert_never(arg: typing.Any) -> typing.Never:
 @dataclasses.dataclass
 class ReferenceParameter:
     is_value: bool
-    value: typing.Union["type.Type", "value.Value"]
+    value: typing.Union["type.Type", "value.Value", "object.Set"]
 
     @classmethod
     def build(
@@ -26,6 +26,11 @@ class ReferenceParameter:
             return cls(
                 is_value=True,
                 value=value.build_value(param.value[0], m, parameters)
+            )
+        elif param.object_set:
+            return cls(
+                is_value=True,
+                value=object.Set.build(param.object_set[0], None, m),
             )
         else:
             raise NotImplementedError(f"Unhandled parameter: {param}")

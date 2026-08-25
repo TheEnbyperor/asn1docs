@@ -154,6 +154,6 @@ ActualParameter <<= pyparsing.Group(
     | values_types.Value("value")
     | values_types.ValueSet("value_set")
     | values_types.DefinedObjectClass("object_class")
-    | values_types.Object("object")
     | values_types.ObjectSet("object_set")
+    | values_types.Object("object")
 )
