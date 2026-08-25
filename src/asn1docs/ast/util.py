@@ -30,7 +30,7 @@ class ReferenceParameter:
         elif param.object_set:
             return cls(
                 is_value=False,
-                value=object.Set.build(param.object_set[0], None, m),
+                value=object.Set.build(param.object_set[0], None, m, parameters),
             )
         else:
             raise NotImplementedError(f"Unhandled parameter: {param}")
